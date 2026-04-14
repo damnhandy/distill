@@ -1,32 +1,49 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.7/.schema/devbox.schema.json",
   "packages": [
+    "go@latest",
     "buildah@latest",
-    "container-structure-test@latest",
-    "cosign@latest",
-    "dagger@latest",
-    "earthly@latest",
-    "gitversion@latest",
-    "grype@latest",
-    "jq@latest",
-    "oras@latest",
     "podman@latest",
     "skopeo@latest",
-    "slsa-verifier@latest",
+    "container-structure-test@latest",
+    "cosign@latest",
+    "grype@latest",
     "syft@latest",
-    "yq-go@latest"
+    "oras@latest",
+    "slsa-verifier@latest",
+    "jq@latest",
+    "yq-go@latest",
+    "gitversion@latest"
   ],
   "env": {
-    "REGISTRY_HOST": "registry.example.com",
-    "IMAGE_VENDOR": "Damnhandy"
+    "GOPATH": "$HOME/go",
+    "GOBIN": "$HOME/go/bin"
   },
   "shell": {
     "init_hook": [
-      "echo 'Core Container Library — dev environment ready'",
+      "echo 'distill dev environment ready'",
       "echo ''",
-      "echo 'Run devbox run --list to see available scripts'"
+      "echo '  go build -o distill .   — build the CLI'",
+      "echo '  devbox run --list       — see available scripts'"
     ],
     "scripts": {
+      "build-cli": [
+        "# Build the distill CLI binary.",
+        "go build -o distill .",
+        "echo 'Built ./distill'"
+      ],
+      "install-cli": [
+        "# Install the distill CLI to $GOBIN.",
+        "go install .",
+        "echo 'Installed distill to $GOBIN'"
+      ],
+      "test": [
+        "# Usage: devbox run test <image:tag> <test-config.yaml>",
+        "# Runs container-structure-test against a built image.",
+        "container-structure-test test \\",
+        "  --image \"${1:?Usage: devbox run test <image:tag> <config.yaml>}\" \\",
+        "  --config \"${2:?missing test config}\""
+      ],
       "scan": [
         "# Usage: devbox run scan <image:tag>",
         "# Scans an image for CVEs and fails on any CRITICAL findings.",
@@ -34,7 +51,7 @@
       ],
       "sbom": [
         "# Usage: devbox run sbom <image:tag> [output-file]",
-        "# Generates an SPDX SBOM for an image and writes it to a file.",
+        "# Generates an SPDX SBOM for an image.",
         "IMAGE=${1:?Usage: devbox run sbom <image:tag> [output-file]}",
         "OUT=${2:-sbom.spdx.json}",
         "syft \"${IMAGE}\" -o spdx-json > \"${OUT}\"",
@@ -42,56 +59,20 @@
       ],
       "sign": [
         "# Usage: devbox run sign <image@digest>",
-        "# Signs an image using keyless Sigstore (requires OIDC context in CI).",
-        "# For local testing, set COSIGN_KEY to a local key file path instead.",
+        "# Signs an image using keyless Sigstore. Set COSIGN_KEY for key-based signing.",
         "IMAGE=${1:?Usage: devbox run sign <image@digest>}",
-        "if [ -n \"${COSIGN_KEY}\" ]; then",
+        "if [ -n \"${COSIGN_KEY:-}\" ]; then",
         "  cosign sign --key \"${COSIGN_KEY}\" \"${IMAGE}\"",
         "else",
         "  cosign sign \"${IMAGE}\"",
         "fi"
       ],
-      "verify": [
-        "# Usage: devbox run verify <image:tag> <expected-identity> <oidc-issuer>",
-        "# Verifies a Cosign signature on an image.",
-        "cosign verify \\",
-        "  \"${1:?Usage: devbox run verify <image:tag> <identity> <oidc-issuer>}\" \\",
-        "  --certificate-identity=\"${2:?missing identity}\" \\",
-        "  --certificate-oidc-issuer=\"${3:?missing oidc-issuer}\""
-      ],
-      "attach-sbom": [
-        "# Usage: devbox run attach-sbom <image:tag> <sbom-file>",
-        "# Attaches an SBOM as an OCI artifact alongside the image.",
-        "oras attach \\",
-        "  \"${1:?Usage: devbox run attach-sbom <image:tag> <sbom-file>}\" \\",
-        "  --artifact-type application/vnd.syft+json \\",
-        "  \"${2:?missing sbom-file}\""
-      ],
       "inspect": [
         "# Usage: devbox run inspect <image:tag>",
-        "# Shows image config, layers, and OCI annotations.",
+        "# Shows image config and layer summary.",
         "skopeo inspect --config \"docker://${1:?Usage: devbox run inspect <image:tag>}\" | jq .",
         "echo ''",
-        "skopeo inspect \"docker://${1}\" | jq '{Digest, Layers: .Layers | length, Created, Labels, Env: .Env}'"
-      ],
-      "copy": [
-        "# Usage: devbox run copy <src-image:tag> <dst-image:tag>",
-        "# Copies an image between registries without a local daemon.",
-        "skopeo copy \\",
-        "  \"docker://${1:?Usage: devbox run copy <src> <dst>}\" \\",
-        "  \"docker://${2:?missing destination}\""
-      ],
-      "test": [
-        "# Usage: devbox run test <image:tag> <test-config.yaml>",
-        "# Runs container-structure-test against an image.",
-        "container-structure-test test \\",
-        "  --image \"${1:?Usage: devbox run test <image:tag> <config.yaml>}\" \\",
-        "  --config \"${2:?missing test config}\""
-      ],
-      "build": [
-        "# Usage: devbox run build",
-        "# Runs the full build pipeline via Dagger.",
-        "dagger run ./build-all.sh"
+        "skopeo inspect \"docker://${1}\" | jq '{Digest, Layers: (.Layers | length), Created, Labels, Env}'"
       ],
       "verify-slsa": [
         "# Usage: devbox run verify-slsa <image:tag> <provenance-file>",
@@ -99,7 +80,7 @@
         "slsa-verifier verify-image \\",
         "  \"${1:?Usage: devbox run verify-slsa <image:tag> <provenance>}\" \\",
         "  --provenance-path \"${2:?missing provenance file}\" \\",
-        "  --source-uri \"github.com/damnhandy/core-library-rhel\""
+        "  --source-uri \"github.com/damnhandy/distill\""
       ]
     }
   }
