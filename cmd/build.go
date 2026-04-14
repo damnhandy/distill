@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/damnhandy/distill/internal/builder"
 	"github.com/damnhandy/distill/internal/spec"
-	"github.com/spf13/cobra"
 )
 
 func newBuildCmd() *cobra.Command {
@@ -23,10 +24,14 @@ func newBuildCmd() *cobra.Command {
 		Long: `Build reads a declarative ImageSpec YAML file and produces a minimal OCI
 image using a chroot bootstrap strategy.
 
-The build runs inside a privileged container (podman run --privileged) using
-the base image specified in the spec, so the correct package manager, repo
-configuration, and release version are always available. The populated chroot
-is then committed as a FROM scratch image via buildah.`,
+The build runs inside a privileged container using the base image specified in
+the spec, so the correct package manager, repo configuration, and release
+version are always available. The populated chroot is then committed as a
+FROM scratch image.
+
+Container runtime is selected automatically based on the host OS:
+  macOS / Windows  — docker run (bootstrap) + docker build (assembly)
+  Linux / WSL2     — podman run (bootstrap) + buildah (assembly)`,
 		Example: `  distill build --spec examples/rhel9-runtime/image.yaml --tag myregistry.io/rhel9-runtime:latest
   distill build --spec examples/debian-runtime/image.yaml --tag myregistry.io/debian-runtime:latest
   distill build --spec image.yaml --tag myregistry.io/my-app:1.0.0 --platform linux/arm64`,

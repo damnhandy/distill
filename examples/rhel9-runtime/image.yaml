@@ -16,8 +16,8 @@ name: rhel9-runtime
 description: Minimal RHEL9 base runtime with no package manager
 
 base:
-  image: registry.access.redhat.com/ubi9/ubi
-  releasever: "9"
+  image: docker.io/redhat/ubi9
+  releasever: "9.7"
   packageManager: dnf
 
 packages:

@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.7/.schema/devbox.schema.json",
   "packages": [
     "go@latest",
+    "golangci-lint@latest",
     "buildah@latest",
     "podman@latest",
     "skopeo@latest",
@@ -13,7 +14,8 @@
     "slsa-verifier@latest",
     "jq@latest",
     "yq-go@latest",
-    "gitversion@latest"
+    "gitversion@latest",
+    "goreleaser@latest"
   ],
   "env": {
     "GOPATH": "$HOME/go",
@@ -21,21 +23,32 @@
   },
   "shell": {
     "init_hook": [
+      "go install golang.org/x/tools/cmd/goimports@latest",
       "echo 'distill dev environment ready'",
       "echo ''",
       "echo '  go build -o distill .   — build the CLI'",
       "echo '  devbox run --list       — see available scripts'"
     ],
     "scripts": {
+      "unit-test": [
+        "# Run unit tests (no integration tag).",
+        "go test ./..."
+      ],
+      "lint": [
+        "# Run golangci-lint against all packages.",
+        "golangci-lint run ./..."
+      ],
       "build-cli": [
         "# Build the distill CLI binary.",
-        "go build -o distill .",
-        "echo 'Built ./distill'"
+        "VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)",
+        "go build -ldflags \"-s -w -X github.com/damnhandy/distill/cmd.Version=${VERSION}\" -o distill .",
+        "echo \"Built ./distill (${VERSION})\""
       ],
       "install-cli": [
         "# Install the distill CLI to $GOBIN.",
-        "go install .",
-        "echo 'Installed distill to $GOBIN'"
+        "VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)",
+        "go install -ldflags \"-s -w -X github.com/damnhandy/distill/cmd.Version=${VERSION}\" .",
+        "echo \"Installed distill to $GOBIN (${VERSION})\""
       ],
       "test": [
         "# Usage: devbox run test <image:tag> <test-config.yaml>",

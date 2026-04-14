@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/damnhandy/distill/internal/builder"
 	"github.com/spf13/cobra"
+
+	"github.com/damnhandy/distill/internal/builder"
 )
 
 func newAttestCmd() *cobra.Command {

@@ -29,19 +29,9 @@ func New(packageManager string) (Builder, error) {
 }
 
 // CheckDeps verifies that the required runtime tools are available on PATH.
+// Docker is required on macOS/Windows; Podman is required on Linux.
 func CheckDeps() error {
-	required := []string{"podman", "buildah"}
-	var missing []string
-	for _, bin := range required {
-		if _, err := exec.LookPath(bin); err != nil {
-			missing = append(missing, bin)
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("required tools not found on PATH: %v\n"+
-			"Install them with: devbox shell", missing)
-	}
-	return nil
+	return checkToolsOnPath(requiredTools(DetectCLI()))
 }
 
 // Scan runs Grype against image and fails on findings at or above failOn severity.

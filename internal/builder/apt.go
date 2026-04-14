@@ -14,101 +14,107 @@ import (
 // using debootstrap to create the initial rootfs.
 type APTBuilder struct{}
 
-// Build bootstraps a chroot using debootstrap inside a privileged container,
-// then assembles the result into a FROM scratch OCI image.
+// Build generates a multi-stage Dockerfile and runs it with the detected
+// container CLI. The builder stage runs debootstrap inside the base image
+// to populate /chroot; the final stage is FROM scratch with the chroot
+// copied in.
 func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform string) error {
-	workDir, err := os.MkdirTemp("", "distill-apt-*")
+	cli := DetectCLI()
+
+	contextDir, err := os.MkdirTemp("", "distill-apt-*")
 	if err != nil {
-		return fmt.Errorf("creating workspace: %w", err)
+		return fmt.Errorf("creating build context: %w", err)
 	}
-	defer os.RemoveAll(workDir)
+	defer os.RemoveAll(contextDir)
 
-	chrootDir := filepath.Join(workDir, "chroot")
-	if err := os.MkdirAll(chrootDir, 0o755); err != nil {
-		return fmt.Errorf("creating chroot dir: %w", err)
-	}
-
-	scriptPath := filepath.Join(workDir, "bootstrap.sh")
-	if err := os.WriteFile(scriptPath, []byte(aptBootstrapScript(s)), 0o755); err != nil {
-		return fmt.Errorf("writing bootstrap script: %w", err)
+	dockerfilePath := filepath.Join(contextDir, "Dockerfile")
+	if err := os.WriteFile(dockerfilePath, []byte(aptDockerfile(s)), 0o644); err != nil {
+		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
-	fmt.Println("Running APT bootstrap (this may take a minute)...")
-	if err := run(ctx, os.Stdout, "podman", "run",
-		"--rm",
-		"--privileged",
-		"--platform", platform,
-		"-v", workDir+":/workspace:z",
-		s.Base.Image,
-		"/bin/bash", "/workspace/bootstrap.sh",
-	); err != nil {
-		return fmt.Errorf("APT bootstrap failed: %w", err)
+	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
+	if tag != "" {
+		args = append(args, "-t", tag)
+	}
+	args = append(args, contextDir)
+
+	if err := run(ctx, os.Stdout, string(cli), args...); err != nil {
+		return fmt.Errorf("build failed: %w", err)
 	}
 
-	fmt.Println("Assembling final image...")
-	return assemble(ctx, s, chrootDir, tag, platform)
+	if tag != "" {
+		fmt.Printf("\nBuilt %s\n", tag)
+	}
+	return nil
 }
 
-// aptBootstrapScript generates the shell script that runs inside the privileged
-// Debian/Ubuntu build container.
-func aptBootstrapScript(s *spec.ImageSpec) string {
+// aptDockerfile generates the full multi-stage Dockerfile for an APT-based image.
+func aptDockerfile(s *spec.ImageSpec) string {
 	var b strings.Builder
 
-	b.WriteString("#!/bin/bash\n")
-	b.WriteString("set -euxo pipefail\n\n")
-	b.WriteString("CHROOT=/workspace/chroot\n\n")
+	// ── Builder stage ────────────────────────────────────────────────────────
 
-	b.WriteString("# Install debootstrap if not present in the base image.\n")
-	b.WriteString("apt-get update -qq\n")
-	b.WriteString("apt-get install -y -qq debootstrap\n\n")
+	b.WriteString(fmt.Sprintf("FROM %s AS builder\n", s.Base.Image))
 
-	b.WriteString("# Bootstrap a minimal Debian/Ubuntu rootfs.\n")
-	b.WriteString("# --variant=minbase installs only Essential:yes packages\n")
-	b.WriteString("# plus the explicit package list.\n")
-	b.WriteString(fmt.Sprintf(
-		"debootstrap --variant=minbase --include=%s %s \"$CHROOT\"\n\n",
+	b.WriteString("\n# Install debootstrap if not present in the base image.\n")
+	b.WriteString("RUN apt-get update -qq \\\n")
+	b.WriteString("    && apt-get install -y -qq debootstrap\n")
+
+	b.WriteString("\n# Bootstrap a minimal rootfs.\n")
+	b.WriteString("# --variant=minbase installs only Essential:yes packages plus the explicit list.\n")
+	b.WriteString(fmt.Sprintf("RUN debootstrap --variant=minbase --include=%s %s /chroot\n",
 		strings.Join(s.Packages, ","),
 		s.Base.Releasever,
 	))
 
-	if s.Accounts != nil {
+	if s.Accounts != nil && (len(s.Accounts.Groups) > 0 || len(s.Accounts.Users) > 0) {
+		b.WriteString("\n# Create groups and users inside the chroot.\n")
+		b.WriteString("RUN ")
+		first := true
 		for _, g := range s.Accounts.Groups {
-			b.WriteString(fmt.Sprintf(
-				"chroot \"$CHROOT\" groupadd --gid %d %s\n", g.GID, g.Name,
-			))
+			if !first {
+				b.WriteString(" \\\n    && ")
+			}
+			b.WriteString(fmt.Sprintf("chroot /chroot groupadd --gid %d %s", g.GID, g.Name))
+			first = false
 		}
 		for _, u := range s.Accounts.Users {
+			if !first {
+				b.WriteString(" \\\n    && ")
+			}
 			shell := u.Shell
 			if shell == "" {
 				shell = "/usr/sbin/nologin"
 			}
-			line := fmt.Sprintf(
-				"chroot \"$CHROOT\" useradd --uid %d --gid %d -r -m -s %s",
-				u.UID, u.GID, shell,
-			)
+			line := fmt.Sprintf("chroot /chroot useradd --uid %d --gid %d -r -m -s %s", u.UID, u.GID, shell)
 			if len(u.Groups) > 0 {
 				line += " -G " + strings.Join(u.Groups, ",")
 			}
 			line += " " + u.Name
-			b.WriteString(line + "\n")
+			b.WriteString(line)
+			first = false
 		}
 		b.WriteString("\n")
 	}
 
-	b.WriteString("# Remove APT package lists and cache.\n")
-	b.WriteString("rm -rf \\\n")
-	b.WriteString("    \"$CHROOT\"/var/cache/apt/archives/*.deb \\\n")
-	b.WriteString("    \"$CHROOT\"/var/lib/apt/lists/* \\\n")
-	b.WriteString("    \"$CHROOT/tmp/\"*\n\n")
+	b.WriteString("\n# Remove APT package lists and cache.\n")
+	b.WriteString("RUN rm -rf \\\n")
+	b.WriteString("    /chroot/var/cache/apt/archives/*.deb \\\n")
+	b.WriteString("    /chroot/var/lib/apt/lists/* \\\n")
+	b.WriteString("    /chroot/tmp/*\n")
 
 	if s.IsImmutable() {
-		b.WriteString("# Remove apt and dpkg for true immutability.\n")
-		b.WriteString("chroot \"$CHROOT\" dpkg --purge --force-depends apt apt-utils 2>/dev/null || true\n")
-		b.WriteString("rm -rf \\\n")
-		b.WriteString("    \"$CHROOT\"/usr/bin/apt* \\\n")
-		b.WriteString("    \"$CHROOT\"/usr/bin/dpkg* \\\n")
-		b.WriteString("    \"$CHROOT\"/var/lib/dpkg/info/*.list\n")
+		b.WriteString("\n# Remove apt and dpkg for true immutability.\n")
+		b.WriteString("RUN chroot /chroot dpkg --purge --force-depends apt apt-utils 2>/dev/null || true \\\n")
+		b.WriteString("    && rm -rf \\\n")
+		b.WriteString("        /chroot/usr/bin/apt* \\\n")
+		b.WriteString("        /chroot/usr/bin/dpkg* \\\n")
+		b.WriteString("        /chroot/var/lib/dpkg/info/*.list\n")
 	}
+
+	// ── Final stage ──────────────────────────────────────────────────────────
+
+	b.WriteString(scratchStageInstructions(s))
 
 	return b.String()
 }
