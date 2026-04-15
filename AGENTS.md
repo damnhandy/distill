@@ -11,12 +11,13 @@ in the output image.
 
 Two backends are supported, selected automatically from `base.image` or set
 explicitly with `base.packageManager`:
+
 - **DNF** — RHEL, UBI, CentOS Stream, Rocky Linux, AlmaLinux, Fedora
 - **APT** — Debian, Ubuntu (uses `debootstrap`)
 
 ## Repository layout
 
-```
+```text
 cmd/                    # cobra CLI commands (build, scan, attest)
 internal/
   spec/                 # ImageSpec YAML types, Parse(), validation
@@ -90,6 +91,7 @@ They are integration tests, not unit tests. Mark them with `//go:build
 integration` and do not run them in `go test ./...` by default.
 
 The following are fully unit-testable and must have tests:
+
 - `spec.Parse` — all valid inputs, all validation error paths
 - `spec.inferPackageManager` — all known prefixes and the default fallback
 - `spec.ImageSpec.IsImmutable` — nil pointer case and both explicit values

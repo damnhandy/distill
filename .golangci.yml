@@ -9,29 +9,69 @@ linters:
     - staticcheck     # broad set of static analysis checks
     - unused          # unused code
 
-    # Style / formatting
-    - goimports       # enforces goimports formatting and import grouping
-
-    # Test quality
-    - testifylint     # correct use of testify assertion functions
+    # Security
+    - gosec           # security-focused static analysis
 
     # Common bugs
+    - copyloopvar     # loop variable capture bugs (pre-Go 1.22 semantics)
     - nilnil          # functions returning (nil, nil) are almost always wrong
     - noctx           # HTTP requests without context
     - bodyclose       # unclosed HTTP response bodies
 
-settings:
-  goimports:
-    # Keep internal imports in a separate group after third-party.
-    local-prefixes:
-      - github.com/damnhandy/distill
+    # Style / documentation
+    - misspell        # spelling mistakes in comments, strings, and identifiers
+    - nolintlint      # enforces proper nolint directive formatting
+    - revive          # opinionated but configurable Go style checker
 
-  testifylint:
-    enable-all: true
+    # Test quality
+    - testifylint     # correct use of testify assertion functions
 
-exclusions:
-  rules:
-    # Test files are allowed to shadow package-level variables.
-    - linters: [govet]
-      path: "_test\\.go"
-      text: "shadow"
+  settings:
+    gosec:
+      # G104: errors unhandled — already covered by errcheck
+      excludes:
+        - G104
+      config:
+        # Require at least 0600 on created files
+        G306: "0600"
+
+    misspell:
+      locale: US
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+          arguments:
+            - checkPrivateReceivers
+        - name: var-naming
+        - name: error-return
+        - name: error-naming
+        - name: if-return
+        - name: unused-parameter
+
+    testifylint:
+      enable-all: true
+
+  exclusions:
+    rules:
+      # Test files may shadow package-level variables.
+      - linters: [govet]
+        path: "_test\\.go"
+        text: "shadow"
+      # Security rules are relaxed in tests.
+      - linters: [gosec]
+        path: "_test\\.go"
+
+formatters:
+  enable:
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/damnhandy/distill

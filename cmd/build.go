@@ -35,7 +35,7 @@ Container runtime is selected automatically based on the host OS:
 		Example: `  distill build --spec examples/rhel9-runtime/image.yaml --tag myregistry.io/rhel9-runtime:latest
   distill build --spec examples/debian-runtime/image.yaml --tag myregistry.io/debian-runtime:latest
   distill build --spec image.yaml --tag myregistry.io/my-app:1.0.0 --platform linux/arm64`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runBuild(cmd.Context(), specFile, tag, platform)
 		},
 	}
@@ -49,7 +49,7 @@ Container runtime is selected automatically based on the host OS:
 }
 
 func runBuild(ctx context.Context, specFile, tag, platform string) error {
-	data, err := os.ReadFile(specFile)
+	data, err := os.ReadFile(specFile) //nolint:gosec // G304: specFile is a CLI argument provided by the operator
 	if err != nil {
 		return fmt.Errorf("reading spec %q: %w", specFile, err)
 	}
