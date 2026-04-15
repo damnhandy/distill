@@ -70,7 +70,9 @@ func Provenance(ctx context.Context, image string, opts ProvenanceOptions) error
 			return fmt.Errorf("creating temp predicate file: %w", err)
 		}
 		predicatePath = f.Name()
-		f.Close()
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("closing temp predicate file: %w", err)
+		}
 		cleanupTemp = true
 	}
 	if cleanupTemp {
@@ -83,7 +85,7 @@ func Provenance(ctx context.Context, image string, opts ProvenanceOptions) error
 
 	data, err := json.MarshalIndent(predicate, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshalling provenance predicate: %w", err)
+		return fmt.Errorf("marshaling provenance predicate: %w", err)
 	}
 	if err := os.WriteFile(predicatePath, data, 0o600); err != nil {
 		return fmt.Errorf("writing predicate to %s: %w", predicatePath, err)
@@ -147,7 +149,7 @@ func imageDigest(ctx context.Context, image string) (string, error) {
 	if _, err := exec.LookPath("skopeo"); err != nil {
 		return "", fmt.Errorf("skopeo not found on PATH")
 	}
-	out, err := exec.CommandContext(ctx, "skopeo", "inspect", "docker://"+image).Output()
+	out, err := exec.CommandContext(ctx, "skopeo", "inspect", "docker://"+image).Output() //nolint:gosec // G204: image is sourced from the validated spec base.image field
 	if err != nil {
 		return "", fmt.Errorf("skopeo inspect: %w", err)
 	}
