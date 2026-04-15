@@ -18,7 +18,7 @@ type APTBuilder struct{}
 // container CLI. The builder stage runs debootstrap inside the base image
 // to populate /chroot; the final stage is FROM scratch with the chroot
 // copied in.
-func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform string) error {
+func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string) error {
 	cli := DetectCLI()
 
 	contextDir, err := os.MkdirTemp("", "distill-apt-*")
@@ -37,7 +37,7 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform
 	}
 
 	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
-	if tag != "" {
+	for _, tag := range s.Tags {
 		args = append(args, "-t", tag)
 	}
 	args = append(args, contextDir)
@@ -46,7 +46,7 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	if tag != "" {
+	for _, tag := range s.Tags {
 		fmt.Printf("\nBuilt %s\n", tag)
 	}
 	return nil
@@ -67,7 +67,7 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("\n# Bootstrap a minimal rootfs.\n")
 	b.WriteString("# --variant=minbase installs only Essential:yes packages plus the explicit list.\n")
 	fmt.Fprintf(&b, "RUN debootstrap --variant=minbase --include=%s %s /chroot\n",
-		strings.Join(s.Packages, ","),
+		strings.Join(s.Contents.Packages, ","),
 		s.Base.Releasever,
 	)
 
@@ -107,7 +107,9 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("    /chroot/var/lib/apt/lists/* \\\n")
 	b.WriteString("    /chroot/tmp/*\n")
 
-	if s.IsImmutable() {
+	b.WriteString(pathsInstructions(s))
+
+	if s.IsRuntime() {
 		b.WriteString("\n# Remove apt and dpkg for true immutability.\n")
 		b.WriteString("RUN chroot /chroot dpkg --purge --force-depends apt apt-utils 2>/dev/null || true \\\n")
 		b.WriteString("    && rm -rf \\\n")

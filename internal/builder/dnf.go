@@ -20,7 +20,7 @@ type DNFBuilder struct{}
 // with the chroot copied in. Because the chroot lives on the container
 // runtime's own overlay filesystem throughout, RPM scriptlets and hardlinks
 // work correctly on all platforms without workarounds.
-func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform string) error {
+func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string) error {
 	cli := DetectCLI()
 
 	contextDir, err := os.MkdirTemp("", "distill-dnf-*")
@@ -39,7 +39,7 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform
 	}
 
 	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
-	if tag != "" {
+	for _, tag := range s.Tags {
 		args = append(args, "-t", tag)
 	}
 	args = append(args, contextDir)
@@ -48,7 +48,7 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	if tag != "" {
+	for _, tag := range s.Tags {
 		fmt.Printf("\nBuilt %s\n", tag)
 	}
 	return nil
@@ -74,8 +74,8 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("    --setopt=install_weak_deps=false \\\n")
 	b.WriteString("    --setopt=tsflags=nodocs \\\n")
 	b.WriteString("    --setopt=override_install_langs=en_US.utf8 \\\n")
-	for i, pkg := range s.Packages {
-		if i < len(s.Packages)-1 {
+	for i, pkg := range s.Contents.Packages {
+		if i < len(s.Contents.Packages)-1 {
 			fmt.Fprintf(&b, "    %s \\\n", pkg)
 		} else {
 			fmt.Fprintf(&b, "    %s\n", pkg)
@@ -114,7 +114,9 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 
 	fmt.Fprintf(&b, "\nRUN dnf clean all --installroot /chroot --releasever %s\n", s.Base.Releasever)
 
-	if s.IsImmutable() {
+	b.WriteString(pathsInstructions(s))
+
+	if s.IsRuntime() {
 		b.WriteString("\n# Remove the package manager for true immutability.\n")
 		b.WriteString("# The RPM database is retained so 'rpm -qa' works for auditing.\n")
 		b.WriteString("RUN rm -rf \\\n")

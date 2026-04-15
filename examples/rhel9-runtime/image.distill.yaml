@@ -10,38 +10,51 @@
 #
 # The package manager (dnf/rpm) is removed after installation.
 # Images that extend this one should layer their runtime on top via
-# a multi-stage build or a separate Distill spec.
+# a multi-stage build or a separate distill spec.
 
 name: rhel9-runtime
 description: Minimal RHEL9 base runtime with no package manager
 
+# variant: "runtime" removes the package manager after installation (default).
+# Use "dev" to retain it for development images.
+variant: runtime
+
+# tags are the OCI image references applied to the built image.
+tags:
+  - distill-example-rhel9-runtime:latest
+
+# platforms lists the target build platforms.
+platforms:
+  - linux/amd64
+  - linux/arm64
+
 base:
   image: docker.io/redhat/ubi9
-  releasever: "9.7"
-  packageManager: dnf
+  releasever: "9"
 
-packages:
-  - coreutils
-  - glibc
-  - libstdc++
-  - ca-certificates
-  - tzdata
-  - glibc-langpack-en
+contents:
+  packages:
+    - coreutils
+    - glibc
+    - libstdc++
+    - ca-certificates
+    - tzdata
+    - glibc-langpack-en
 
 accounts:
-  groups:
-    - name: appuser
-      gid: 10001
+  run-as: appuser
   users:
     - name: appuser
       uid: 10001
       gid: 10001
       shell: /sbin/nologin
+  groups:
+    - name: appuser
+      gid: 10001
 
-image:
-  cmd: ["/bin/bash"]
-  env:
-    LANG: en_US.UTF-8
-    LC_ALL: en_US.UTF-8
+environment:
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
 
-immutable: true
+cmd:
+  - /bin/bash

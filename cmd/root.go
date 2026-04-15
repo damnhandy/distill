@@ -29,6 +29,7 @@ func Execute() error {
 
 func init() {
 	rootCmd.AddCommand(
+		newInitCmd(),
 		newBuildCmd(),
 		newScanCmd(),
 		newAttestCmd(),

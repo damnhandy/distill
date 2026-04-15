@@ -13,42 +13,50 @@ import (
 
 func newBuildCmd() *cobra.Command {
 	var (
-		specFile string
-		tag      string
-		platform string
+		specFile         string
+		platformOverride string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "build",
-		Short: "Build a minimal OCI image from an ImageSpec YAML file",
-		Long: `Build reads a declarative ImageSpec YAML file and produces a minimal OCI
-image using a chroot bootstrap strategy.
+		Short: "Build minimal OCI images from a .distill.yaml spec file",
+		Long: `Build reads a declarative .distill.yaml spec file and produces minimal OCI
+images using a chroot bootstrap strategy.
 
 The build runs inside a privileged container using the base image specified in
 the spec, so the correct package manager, repo configuration, and release
 version are always available. The populated chroot is then committed as a
 FROM scratch image.
 
+Target platforms and image tags are declared in the spec file:
+
+  platforms:
+    - linux/amd64
+    - linux/arm64
+  tags:
+    - myregistry.io/myapp:latest
+
 Container runtime is selected automatically based on the host OS:
-  macOS / Windows  — docker run (bootstrap) + docker build (assembly)
-  Linux / WSL2     — podman run (bootstrap) + buildah (assembly)`,
-		Example: `  distill build --spec examples/rhel9-runtime/image.yaml --tag myregistry.io/rhel9-runtime:latest
-  distill build --spec examples/debian-runtime/image.yaml --tag myregistry.io/debian-runtime:latest
-  distill build --spec image.yaml --tag myregistry.io/my-app:1.0.0 --platform linux/arm64`,
+  macOS / Windows  — docker build
+  Linux / WSL2     — podman build
+
+The --platform flag overrides the spec's platforms list and builds only
+the specified platform.`,
+		Example: `  distill build --spec examples/rhel9-runtime/image.distill.yaml
+  distill build --spec image.distill.yaml --platform linux/arm64`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runBuild(cmd.Context(), specFile, tag, platform)
+			return runBuild(cmd.Context(), specFile, platformOverride)
 		},
 	}
 
-	cmd.Flags().StringVarP(&specFile, "spec", "s", "", "Path to the ImageSpec YAML file (required)")
-	cmd.Flags().StringVarP(&tag, "tag", "t", "", "Image tag for the output image (e.g. registry/image:tag)")
-	cmd.Flags().StringVar(&platform, "platform", "linux/amd64", "Target platform (linux/amd64, linux/arm64)")
+	cmd.Flags().StringVarP(&specFile, "spec", "s", "", "Path to the .distill.yaml spec file (required)")
+	cmd.Flags().StringVar(&platformOverride, "platform", "", "Override platform (e.g. linux/arm64); builds only this platform")
 	_ = cmd.MarkFlagRequired("spec")
 
 	return cmd
 }
 
-func runBuild(ctx context.Context, specFile, tag, platform string) error {
+func runBuild(ctx context.Context, specFile, platformOverride string) error {
 	data, err := os.ReadFile(specFile) //nolint:gosec // G304: specFile is a CLI argument provided by the operator
 	if err != nil {
 		return fmt.Errorf("reading spec %q: %w", specFile, err)
@@ -68,8 +76,19 @@ func runBuild(ctx context.Context, specFile, tag, platform string) error {
 		return err
 	}
 
-	fmt.Printf("Building %q\n  base:     %s\n  platform: %s\n  packages: %d\n\n",
-		imageSpec.Name, imageSpec.Base.Image, platform, len(imageSpec.Packages))
+	platforms := imageSpec.EffectivePlatforms()
+	if platformOverride != "" {
+		platforms = []string{platformOverride}
+	}
 
-	return b.Build(ctx, imageSpec, tag, platform)
+	fmt.Printf("Building %q\n  base:      %s\n  variant:   %s\n  platforms: %v\n  packages:  %d\n\n",
+		imageSpec.Name, imageSpec.Base.Image, imageSpec.Variant, platforms, len(imageSpec.Contents.Packages))
+
+	for _, platform := range platforms {
+		if err := b.Build(ctx, imageSpec, platform); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

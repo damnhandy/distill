@@ -12,8 +12,10 @@ import (
 )
 
 // Builder builds an OCI image from an ImageSpec.
+// Tags and platforms are read from the spec; platform is the single target
+// platform for this invocation (the caller iterates over EffectivePlatforms).
 type Builder interface {
-	Build(ctx context.Context, s *spec.ImageSpec, tag, platform string) error
+	Build(ctx context.Context, s *spec.ImageSpec, platform string) error
 }
 
 // New returns the Builder for the given package manager.

@@ -1,6 +1,6 @@
 # Examples
 
-Each subdirectory contains an `image.yaml` spec and a `test.yaml`
+Each subdirectory contains a `.distill.yaml` spec and a `test.yaml`
 [container-structure-test](https://github.com/GoogleContainerTools/container-structure-test)
 configuration.
 
@@ -12,13 +12,14 @@ configuration.
 ## Building an example
 
 ```bash
-# Build and load into Docker
-dagger call build --spec=examples/rhel9-runtime/image.yaml export --path=./rhel9-runtime.tar
-docker load < rhel9-runtime.tar
+# Build all platforms declared in the spec
+distill build --spec examples/rhel9-runtime/image.distill.yaml
 
-# Check the size
-docker images | grep rhel9-runtime
+# Build a single platform
+distill build --spec examples/rhel9-runtime/image.distill.yaml --platform linux/amd64
 
 # Run structure tests
-devbox run test rhel9-runtime:latest examples/rhel9-runtime/test.yaml
+container-structure-test test \
+  --image distill-example-rhel9-runtime:latest \
+  --config examples/rhel9-runtime/test.yaml
 ```

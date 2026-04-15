@@ -10,6 +10,8 @@ import (
 
 // ImageSpec defines the desired state of a minimal OCI image.
 // It is the sole input to the distill build pipeline.
+//
+// The schema is inspired by Docker Hardened Images (DHI) conventions.
 type ImageSpec struct {
 	// Name is a human-readable identifier for the image.
 	Name string `yaml:"name"`
@@ -17,42 +19,105 @@ type ImageSpec struct {
 	// Description is an optional description of the image's purpose.
 	Description string `yaml:"description,omitempty"`
 
+	// Variant controls whether the package manager is removed from the final
+	// image. "runtime" removes it (default); "dev" retains it.
+	Variant string `yaml:"variant,omitempty"`
+
+	// Tags are the OCI image references to apply to the built image.
+	// Equivalent to passing -t to docker/podman build.
+	// When empty, the image is built but not tagged.
+	Tags []string `yaml:"tags,omitempty"`
+
+	// Platforms lists the target build platforms (e.g., linux/amd64, linux/arm64).
+	// Defaults to [linux/amd64, linux/arm64] when empty.
+	Platforms []string `yaml:"platforms,omitempty"`
+
 	// Base identifies the source distribution used for the chroot bootstrap.
 	Base BaseSpec `yaml:"base"`
 
-	// Packages is the explicit list of packages to install into the image.
-	// Only these packages and their hard dependencies will be present.
-	Packages []string `yaml:"packages"`
-
-	// Runtime optionally installs a language runtime sourced directly from
-	// upstream (Temurin, Node.js) rather than from the distro package manager,
-	// allowing exact version pinning independent of what the distro ships.
-	Runtime *RuntimeSpec `yaml:"runtime,omitempty"`
+	// Contents declares what should be installed into the image.
+	Contents ContentsSpec `yaml:"contents"`
 
 	// Accounts defines non-root users and groups to create inside the image.
 	Accounts *AccountsSpec `yaml:"accounts,omitempty"`
 
-	// Image holds OCI image configuration applied to the final container.
-	Image ImageConfig `yaml:"image,omitempty"`
+	// Environment is a map of environment variables set in the final image.
+	// Equivalent to the ENV Dockerfile instruction.
+	Environment map[string]string `yaml:"environment,omitempty"`
 
-	// Immutable removes the package manager after installation so the image
-	// cannot self-modify at runtime. Defaults to true when omitted.
-	Immutable *bool `yaml:"immutable,omitempty"`
+	// Entrypoint sets the container entrypoint command.
+	Entrypoint []string `yaml:"entrypoint,omitempty"`
+
+	// Cmd is the default command when the container is run.
+	Cmd []string `yaml:"cmd,omitempty"`
+
+	// WorkDir sets the working directory inside the container.
+	WorkDir string `yaml:"work-dir,omitempty"`
+
+	// Annotations are OCI image metadata labels applied to the final image.
+	Annotations map[string]string `yaml:"annotations,omitempty"`
+
+	// Volumes declares mount points inside the container.
+	// Equivalent to the VOLUME Dockerfile instruction.
+	Volumes []string `yaml:"volumes,omitempty"`
+
+	// Ports declares network ports the container listens on.
+	// Format: "<port>/<protocol>" (e.g., "8080/tcp"). Equivalent to EXPOSE.
+	Ports []string `yaml:"ports,omitempty"`
+
+	// Paths declares filesystem entries (directories, files, symlinks) to
+	// create inside the image chroot during the build stage.
+	Paths []PathSpec `yaml:"paths,omitempty"`
+
+	// Runtime optionally installs a language runtime sourced directly from
+	// upstream rather than from the distro package manager.
+	Runtime *RuntimeSpec `yaml:"runtime,omitempty"`
 }
 
-// IsImmutable returns true if the package manager should be removed.
-// Defaults to true when the field is not set in the spec.
-func (s *ImageSpec) IsImmutable() bool {
-	if s.Immutable == nil {
-		return true
+// IsRuntime reports whether the package manager should be removed from the
+// final image. Returns true when Variant is "runtime" or unset.
+func (s *ImageSpec) IsRuntime() bool {
+	return s.Variant == "" || s.Variant == "runtime"
+}
+
+// EffectivePlatforms returns the build platforms declared in the spec.
+// When Platforms is empty it defaults to [linux/amd64, linux/arm64].
+func (s *ImageSpec) EffectivePlatforms() []string {
+	if len(s.Platforms) == 0 {
+		return []string{"linux/amd64", "linux/arm64"}
 	}
-	return *s.Immutable
+	return s.Platforms
+}
+
+// RunAsUser returns the UserSpec for the container's runtime user.
+// It resolves accounts.run-as by name; when run-as is unset it returns the
+// first user entry. Returns nil when no users are configured.
+func (s *ImageSpec) RunAsUser() *UserSpec {
+	if s.Accounts == nil || len(s.Accounts.Users) == 0 {
+		return nil
+	}
+	if s.Accounts.RunAs == "" {
+		return &s.Accounts.Users[0]
+	}
+	for i := range s.Accounts.Users {
+		if s.Accounts.Users[i].Name == s.Accounts.RunAs {
+			return &s.Accounts.Users[i]
+		}
+	}
+	return nil
+}
+
+// ContentsSpec declares what should be installed into the image.
+type ContentsSpec struct {
+	// Packages is the explicit list of packages to install.
+	// Only these packages and their hard dependencies will be present.
+	Packages []string `yaml:"packages"`
+	// future: Repositories, Keyring for custom package sources
 }
 
 // BaseSpec identifies the source distribution for the chroot bootstrap.
 type BaseSpec struct {
 	// Image is the OCI image reference used as the build host.
-	// It must have the target distro's package manager available.
 	//   registry.access.redhat.com/ubi9/ubi  — RHEL/UBI9
 	//   debian:bookworm                       — Debian
 	//   ubuntu:24.04                          — Ubuntu
@@ -68,29 +133,20 @@ type BaseSpec struct {
 	PackageManager string `yaml:"packageManager,omitempty"`
 }
 
-// RuntimeSpec installs a language runtime from an upstream binary distribution
-// rather than from the distro package manager.
-type RuntimeSpec struct {
-	// Type identifies the runtime. Supported: "nodejs", "temurin", "python".
-	Type string `yaml:"type"`
-
-	// Version is the exact upstream release to install.
-	Version string `yaml:"version"`
-
-	// SHA256 is the expected checksum of the upstream archive.
-	SHA256 string `yaml:"sha256"`
-}
-
 // AccountsSpec defines the non-root users and groups inside the image.
 type AccountsSpec struct {
-	Groups []GroupSpec `yaml:"groups,omitempty"`
+	// RunAs names the user the container process runs as.
+	// Must match one of the users entries. Defaults to the first user.
+	RunAs  string      `yaml:"run-as,omitempty"`
 	Users  []UserSpec  `yaml:"users,omitempty"`
+	Groups []GroupSpec `yaml:"groups,omitempty"`
 }
 
 // GroupSpec defines a group to create inside the image.
 type GroupSpec struct {
-	Name string `yaml:"name"`
-	GID  int    `yaml:"gid"`
+	Name    string   `yaml:"name"`
+	GID     int      `yaml:"gid"`
+	Members []string `yaml:"members,omitempty"`
 }
 
 // UserSpec defines a non-root user to create inside the image.
@@ -104,14 +160,33 @@ type UserSpec struct {
 	Groups []string `yaml:"groups,omitempty"`
 }
 
-// ImageConfig holds the OCI image configuration for the final container.
-type ImageConfig struct {
-	// Cmd is the default command when the container is run.
-	Cmd []string `yaml:"cmd,omitempty"`
-	// Workdir sets the working directory inside the container.
-	Workdir string `yaml:"workdir,omitempty"`
-	// Env is a map of environment variables to set in the final image.
-	Env map[string]string `yaml:"env,omitempty"`
+// PathSpec declares a filesystem entry to create inside the image chroot.
+type PathSpec struct {
+	// Type is one of "directory", "file", or "symlink".
+	Type string `yaml:"type"`
+	// Path is the destination path inside the image (e.g., /app/data).
+	Path string `yaml:"path"`
+	// Source is the link target — only valid for type: symlink.
+	Source string `yaml:"source,omitempty"`
+	// Content is the file content — only valid for type: file.
+	Content string `yaml:"content,omitempty"`
+	UID     int    `yaml:"uid,omitempty"`
+	GID     int    `yaml:"gid,omitempty"`
+	// Mode is the octal permission string (e.g., "0755").
+	Mode string `yaml:"mode,omitempty"`
+}
+
+// RuntimeSpec installs a language runtime from an upstream binary distribution
+// rather than from the distro package manager.
+type RuntimeSpec struct {
+	// Type identifies the runtime. Supported: "nodejs", "temurin", "python".
+	Type string `yaml:"type"`
+
+	// Version is the exact upstream release to install.
+	Version string `yaml:"version"`
+
+	// SHA256 is the expected checksum of the upstream archive.
+	SHA256 string `yaml:"sha256"`
 }
 
 // Parse unmarshals an ImageSpec from YAML bytes and validates it.
@@ -124,7 +199,7 @@ func Parse(data []byte) (*ImageSpec, error) {
 		return nil, err
 	}
 	if s.Base.PackageManager == "" {
-		s.Base.PackageManager = inferPackageManager(s.Base.Image)
+		s.Base.PackageManager = InferPackageManager(s.Base.Image)
 	}
 	return &s, nil
 }
@@ -140,8 +215,11 @@ func validate(s *ImageSpec) error {
 	if s.Base.Releasever == "" {
 		errs = append(errs, "base.releasever is required")
 	}
-	if len(s.Packages) == 0 {
-		errs = append(errs, "at least one package is required")
+	if len(s.Contents.Packages) == 0 {
+		errs = append(errs, "at least one package is required under contents.packages")
+	}
+	if s.Variant != "" && s.Variant != "runtime" && s.Variant != "dev" {
+		errs = append(errs, `variant must be "runtime" or "dev"`)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid image spec:\n  - %s", strings.Join(errs, "\n  - "))
@@ -149,21 +227,24 @@ func validate(s *ImageSpec) error {
 	return nil
 }
 
-// inferPackageManager guesses the package manager from the base image reference.
-func inferPackageManager(image string) string {
+// InferPackageManager guesses the package manager from the base image reference.
+// Returns "dnf" for RPM-based images, "apt" for Debian/Ubuntu, and "dnf" as the
+// default for unrecognized enterprise images.
+func InferPackageManager(image string) string {
 	rpmPrefixes := []string{
 		"registry.access.redhat.com/ubi",
 		"registry.redhat.io/ubi",
 		"quay.io/centos",
 		"quay.io/fedora",
 		"centos:", "fedora:", "rockylinux:", "almalinux:",
+		"docker.io/redhat/",
 	}
 	for _, p := range rpmPrefixes {
 		if strings.HasPrefix(image, p) {
 			return "dnf"
 		}
 	}
-	aptPrefixes := []string{"debian:", "ubuntu:"}
+	aptPrefixes := []string{"debian:", "ubuntu:", "docker.io/library/debian:", "docker.io/library/ubuntu:"}
 	for _, p := range aptPrefixes {
 		if strings.HasPrefix(image, p) {
 			return "apt"
