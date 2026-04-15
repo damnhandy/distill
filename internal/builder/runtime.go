@@ -38,7 +38,6 @@ func DetectCLI() ContainerCLI {
 	}
 }
 
-
 // requiredTools returns the tools that must be present on PATH for the given CLI.
 //
 // Both Docker and Podman now use their built-in multi-stage build support

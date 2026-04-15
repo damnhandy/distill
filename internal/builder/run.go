@@ -19,7 +19,6 @@ func run(ctx context.Context, w io.Writer, name string, args ...string) error {
 	return nil
 }
 
-
 func fmtCmd(name string, args []string) string {
 	return name + " " + strings.Join(args, " ")
 }
