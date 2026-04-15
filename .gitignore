@@ -2,9 +2,6 @@
 /distill
 /distill.exe
 
-# Go
-go.sum
-
 # devbox
 .devbox/
 
