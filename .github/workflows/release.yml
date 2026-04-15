@@ -5,14 +5,15 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
-  id-token: write  # keyless cosign signing via OIDC
-
 jobs:
-  goreleaser:
+  release:
     name: GoReleaser
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # keyless cosign signing via OIDC
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,6 +30,7 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Run GoReleaser
+        id: goreleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -36,3 +38,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      # Base64-encode checksums.txt so the SLSA provenance job can consume it.
+      # The SLSA generator uses these hashes as the subject of the provenance attestation.
+      - name: Generate artifact hashes for SLSA provenance
+        id: hash
+        run: |
+          set -euo pipefail
+          echo "hashes=$(base64 -w0 dist/checksums.txt)" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    name: SLSA Provenance
+    needs: [release]
+    permissions:
+      actions: read    # read workflow run info
+      id-token: write  # sign provenance via OIDC
+      contents: write  # upload provenance to release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.release.outputs.hashes }}"
+      upload-assets: true

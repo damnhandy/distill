@@ -32,6 +32,7 @@ func init() {
 		newBuildCmd(),
 		newScanCmd(),
 		newAttestCmd(),
+		newProvenanceCmd(),
 		newVersionCmd(),
 	)
 }
