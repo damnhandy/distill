@@ -1,13 +1,33 @@
-# Build output
+# ── Build output ─────────────────────────────────────────────────────────────
 /distill
 /distill.exe
 
-# devbox
-.devbox/
+# GoReleaser snapshot/release artifacts
+/dist/
 
-# Temporary build workspace directories
+# Temporary build workspace directories created by distill itself
 /distill-dnf-*
 /distill-apt-*
 
-# OS
+# ── Go ────────────────────────────────────────────────────────────────────────
+# Test binary outputs
+*.test
+*.out
+
+# ── Nix ───────────────────────────────────────────────────────────────────────
+# nix build symlink
+result
+result-*
+
+# ── devbox ───────────────────────────────────────────────────────────────────
+.devbox/
+
+# ── Claude Code ──────────────────────────────────────────────────────────────
+# Track .claude/ (AGENTS.md, commands, etc.) but exclude machine-local settings
+.claude/settings.local.json
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+
+# .vscode/ is intentionally tracked for shared settings and recommended extensions
