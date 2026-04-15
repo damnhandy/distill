@@ -1,0 +1,13 @@
+# markdownlint configuration
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+default: true
+
+# MD013 - Line length: disable, long lines are common in technical docs
+MD013: false
+
+# MD033 - Inline HTML: allow for README badges and anchors
+MD033: false
+
+# MD041 - First line should be top level heading: disable for templates/fragments
+MD041: false
