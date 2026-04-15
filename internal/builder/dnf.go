@@ -27,10 +27,14 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, tag, platform
 	if err != nil {
 		return fmt.Errorf("creating build context: %w", err)
 	}
-	defer os.RemoveAll(contextDir)
+	defer func() {
+		if err := os.RemoveAll(contextDir); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: removing build context: %v\n", err)
+		}
+	}()
 
 	dockerfilePath := filepath.Join(contextDir, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(dnfDockerfile(s)), 0o644); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dnfDockerfile(s)), 0o600); err != nil {
 		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 

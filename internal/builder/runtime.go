@@ -38,17 +38,6 @@ func DetectCLI() ContainerCLI {
 	}
 }
 
-// volumeMount builds the -v flag value for a bind mount.
-//
-// Podman on Linux appends :z to request SELinux context relabeling on the
-// bind-mounted directory. Docker Desktop (macOS/Windows) does not use SELinux,
-// so the flag is omitted to avoid unexpected behavior.
-func volumeMount(hostPath, containerPath string, cli ContainerCLI) string {
-	if cli == CLIPodman {
-		return hostPath + ":" + containerPath + ":z"
-	}
-	return hostPath + ":" + containerPath
-}
 
 // requiredTools returns the tools that must be present on PATH for the given CLI.
 //
