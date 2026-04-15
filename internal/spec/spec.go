@@ -199,7 +199,7 @@ func Parse(data []byte) (*ImageSpec, error) {
 		return nil, err
 	}
 	if s.Base.PackageManager == "" {
-		s.Base.PackageManager = inferPackageManager(s.Base.Image)
+		s.Base.PackageManager = InferPackageManager(s.Base.Image)
 	}
 	return &s, nil
 }
@@ -227,8 +227,10 @@ func validate(s *ImageSpec) error {
 	return nil
 }
 
-// inferPackageManager guesses the package manager from the base image reference.
-func inferPackageManager(image string) string {
+// InferPackageManager guesses the package manager from the base image reference.
+// Returns "dnf" for RPM-based images, "apt" for Debian/Ubuntu, and "dnf" as the
+// default for unrecognized enterprise images.
+func InferPackageManager(image string) string {
 	rpmPrefixes := []string{
 		"registry.access.redhat.com/ubi",
 		"registry.redhat.io/ubi",

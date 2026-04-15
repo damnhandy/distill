@@ -262,7 +262,7 @@ func TestInferPackageManager(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := inferPackageManager(tc.image)
+			got := InferPackageManager(tc.image)
 			assert.Equal(t, tc.want, got)
 		})
 	}

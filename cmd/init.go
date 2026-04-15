@@ -8,6 +8,8 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+
+	"github.com/damnhandy/distill/internal/spec"
 )
 
 // basePreset holds the known values for a well-known base distribution.
@@ -175,18 +177,27 @@ func newInitCmd() *cobra.Command {
 		Long: `init generates a .distill.yaml scaffold with sensible defaults for
 the chosen base distribution.
 
-Known base values:
-  ubi9      — Red Hat UBI 9 (DNF)
-  ubi8      — Red Hat UBI 8 (DNF)
-  fedora    — Fedora latest (DNF)
-  debian    — Debian Bookworm slim (APT)
-  ubuntu    — Ubuntu 24.04 LTS (APT)
-  ubuntu22  — Ubuntu 22.04 LTS (APT)
+--base accepts either a shorthand key or a fully qualified image URI:
+
+  Shorthand keys:
+    ubi9      — Red Hat UBI 9 (DNF)
+    ubi8      — Red Hat UBI 8 (DNF)
+    fedora    — Fedora latest (DNF)
+    debian    — Debian Bookworm slim (APT)
+    ubuntu    — Ubuntu 24.04 LTS (APT)
+    ubuntu22  — Ubuntu 22.04 LTS (APT)
+
+  Fully qualified image URI (releasever must be set manually):
+    registry.access.redhat.com/ubi9/ubi:9.4
+    quay.io/centos/centos:stream9
+    rockylinux:9
+    almalinux:9
 
 When --base is omitted a generic template with placeholder values is written.`,
 		Example: `  distill init --base ubi9 --name myapp
   distill init --base debian --name myservice --tag myregistry.io/myservice:latest
-  distill init --base ubi9 --variant dev --output dev.distill.yaml`,
+  distill init --base ubi9 --variant dev --output dev.distill.yaml
+  distill init --base registry.access.redhat.com/ubi9/ubi:9.4 --name myapp`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runInit(name, base, variant, output, tag, force)
 		},
@@ -237,20 +248,35 @@ func runInit(name, base, variant, output, tag string, force bool) error {
 		samplePackages = []string{"# add packages here"}
 	)
 	if base != "" {
-		p, ok := basePresets[base]
-		if !ok {
+		if p, ok := basePresets[base]; ok {
+			// Known shorthand key — use the full preset.
+			image = p.Image
+			releasever = p.Releasever
+			packageManager = p.PackageManager
+			defaultShell = p.DefaultShell
+			defaultCmd = p.DefaultCmd
+			samplePackages = p.SamplePackages
+		} else if strings.ContainsAny(base, "/:") {
+			// Fully qualified image URI — use it directly and infer the package manager.
+			image = base
+			releasever = "VERSION" // must be set by the user
+			packageManager = spec.InferPackageManager(base)
+			if packageManager == "apt" {
+				defaultShell = "/usr/sbin/nologin"
+				defaultCmd = "/bin/sh"
+				samplePackages = []string{"libc6", "ca-certificates"}
+			} else {
+				defaultShell = "/sbin/nologin"
+				defaultCmd = "/bin/bash"
+				samplePackages = []string{"glibc", "ca-certificates"}
+			}
+		} else {
 			keys := make([]string, 0, len(basePresets))
 			for k := range basePresets {
 				keys = append(keys, k)
 			}
-			return fmt.Errorf("unknown base %q — choose from: %s", base, strings.Join(keys, ", "))
+			return fmt.Errorf("unknown base %q — use a shorthand key (%s) or a fully qualified image URI", base, strings.Join(keys, ", "))
 		}
-		image = p.Image
-		releasever = p.Releasever
-		packageManager = p.PackageManager
-		defaultShell = p.DefaultShell
-		defaultCmd = p.DefaultCmd
-		samplePackages = p.SamplePackages
 	}
 
 	// Check for existing file.
@@ -283,8 +309,11 @@ func runInit(name, base, variant, output, tag string, force bool) error {
 	}
 
 	fmt.Printf("Created %s\n", output)
-	if base == "" {
+	switch {
+	case base == "":
 		fmt.Println("Edit the file and replace placeholder values before running distill build.")
+	case releasever == "VERSION":
+		fmt.Println("Set base.releasever to the distribution version (e.g. \"9\", \"bookworm\") before running distill build.")
 	}
 	return nil
 }
