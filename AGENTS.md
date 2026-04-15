@@ -176,7 +176,7 @@ dedicated branch — **never commit directly to `main`**.
 
 Use a short, human-readable name that describes the work:
 
-```
+```text
 feature/<what-youre-adding>     # new functionality
 fix/<what-youre-fixing>         # bug fixes
 chore/<what-youre-changing>     # maintenance, dependency updates, CI changes
@@ -185,7 +185,7 @@ docs/<what-youre-documenting>   # documentation only
 
 Good examples:
 
-```
+```text
 feature/homebrew-packaging
 fix/dnf-bootstrap-env-vars
 chore/upgrade-actions-node24
