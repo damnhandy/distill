@@ -167,6 +167,39 @@ The hook config lives in `lefthook.yml` at the repo root.
 
 ---
 
+## Git workflow
+
+All new features, bug fixes, and non-trivial changes must be developed on a
+dedicated branch — **never commit directly to `main`**.
+
+### Branch naming
+
+Use a short, human-readable name that describes the work:
+
+```text
+feature/<what-youre-adding>     # new functionality
+fix/<what-youre-fixing>         # bug fixes
+chore/<what-youre-changing>     # maintenance, dependency updates, CI changes
+docs/<what-youre-documenting>   # documentation only
+```
+
+Good examples:
+
+```text
+feature/homebrew-packaging
+fix/dnf-bootstrap-env-vars
+chore/upgrade-actions-node24
+docs/add-apt-backend-guide
+```
+
+### Pull requests
+
+Every branch must be merged via a pull request. PRs require at least one
+passing CI run before merging. Squash or merge commits are both acceptable;
+do not rebase-merge feature branches with many WIP commits onto `main`.
+
+---
+
 ## CI / release workflow notes
 
 ### SLSA generator version pinning
@@ -196,3 +229,5 @@ for any breaking changes to the `base64-subjects` input format.
   fix the code instead.
 - Do not write tests for the `run` and `capture` helpers directly; they are
   thin wrappers over `os/exec` and are covered by integration tests.
+- Do not commit directly to `main` — all changes must go through a feature
+  branch and pull request.

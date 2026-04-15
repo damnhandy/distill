@@ -15,11 +15,11 @@ jobs:
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -31,7 +31,7 @@ jobs:
 
       - name: Run GoReleaser
         id: goreleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: release --clean
@@ -58,3 +58,4 @@ jobs:
     with:
       base64-subjects: "${{ needs.release.outputs.hashes }}"
       upload-assets: true
+      private-repository: true
