@@ -60,7 +60,7 @@ func checkToolsOnPath(names []string) error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("required tools not found on PATH: %v\n"+
-			"Install them with: devbox shell", missing)
+			"Run 'distill doctor' for install instructions", missing)
 	}
 	return nil
 }

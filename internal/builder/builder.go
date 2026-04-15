@@ -37,7 +37,7 @@ func CheckDeps() error {
 // Scan runs Grype against image and fails on findings at or above failOn severity.
 func Scan(ctx context.Context, image, failOn string) error {
 	if _, err := exec.LookPath("grype"); err != nil {
-		return fmt.Errorf("grype not found on PATH — install with: devbox shell")
+		return fmt.Errorf("grype not found on PATH — run 'distill doctor' for install instructions")
 	}
 	return run(ctx, os.Stdout,
 		"grype", image,
@@ -49,7 +49,7 @@ func Scan(ctx context.Context, image, failOn string) error {
 // Attest generates an SPDX SBOM for image using Syft and writes it to outputPath.
 func Attest(ctx context.Context, image, outputPath string) error {
 	if _, err := exec.LookPath("syft"); err != nil {
-		return fmt.Errorf("syft not found on PATH — install with: devbox shell")
+		return fmt.Errorf("syft not found on PATH — run 'distill doctor' for install instructions")
 	}
 	return run(ctx, os.Stdout,
 		"syft", image,

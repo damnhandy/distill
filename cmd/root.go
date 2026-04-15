@@ -33,6 +33,7 @@ func init() {
 		newScanCmd(),
 		newAttestCmd(),
 		newProvenanceCmd(),
+		newDoctorCmd(),
 		newVersionCmd(),
 	)
 }
