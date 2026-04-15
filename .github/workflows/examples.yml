@@ -35,6 +35,7 @@ jobs:
             tag: distill-example-rhel9-runtime:ci
           - name: debian-runtime
             spec: examples/debian-runtime/image.yaml
+            test: examples/debian-runtime/test.yaml
             tag: distill-example-debian-runtime:ci
 
     steps:
@@ -68,9 +69,15 @@ jobs:
         if: matrix.example.test != ''
         run: container-structure-test test --image ${{ matrix.example.tag }} --config ${{ matrix.example.test }}
 
+      - name: Install syft and grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM
+        run: ./distill attest --output sbom-${{ matrix.example.name }}.spdx.json ${{ matrix.example.tag }}
+
       - name: Scan for CVEs
-        uses: anchore/scan-action@v7
-        with:
-          image: ${{ matrix.example.tag }}
-          fail-build: false
-          severity-cutoff: critical
+        run: ./distill scan --fail-on critical ${{ matrix.example.tag }}

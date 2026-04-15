@@ -1,0 +1,101 @@
+name: CLI Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  cli-smoke:
+    name: CLI Smoke Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build distill CLI
+        run: >
+          go build
+          -ldflags="-s -w -X github.com/damnhandy/distill/cmd.Version=ci"
+          -o distill
+          .
+
+      # ── distill doctor ──────────────────────────────────────────────────────
+      # cosign / syft / grype are not installed on the runner, so doctor will
+      # show missing rows — that is expected. The test verifies the command
+      # exits 0 and produces tabular output.
+      - name: "doctor: exits 0 and prints table header"
+        run: |
+          output=$(./distill doctor)
+          echo "$output"
+          echo "$output" | grep -q "TOOL"
+          echo "$output" | grep -q "STATUS"
+
+      # ── help output ─────────────────────────────────────────────────────────
+      - name: "root --help lists all subcommands"
+        run: |
+          output=$(./distill --help)
+          echo "$output"
+          echo "$output" | grep -q "build"
+          echo "$output" | grep -q "scan"
+          echo "$output" | grep -q "attest"
+          echo "$output" | grep -q "provenance"
+          echo "$output" | grep -q "doctor"
+
+      - name: "build --help exits 0"
+        run: ./distill build --help
+
+      - name: "scan --help exits 0"
+        run: ./distill scan --help
+
+      - name: "attest --help exits 0"
+        run: ./distill attest --help
+
+      - name: "provenance --help exits 0"
+        run: ./distill provenance --help
+
+      - name: "doctor --help exits 0"
+        run: ./distill doctor --help
+
+      # ── flag validation ──────────────────────────────────────────────────────
+      - name: "build without --spec exits non-zero"
+        run: |
+          if ./distill build 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "build with missing spec file exits non-zero"
+        run: |
+          if ./distill build --spec /nonexistent/path.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "build with invalid YAML exits non-zero"
+        run: |
+          echo "this: is: not: valid: yaml: [" > /tmp/bad.yaml
+          if ./distill build --spec /tmp/bad.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "scan without image argument exits non-zero"
+        run: |
+          if ./distill scan 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "attest without image argument exits non-zero"
+        run: |
+          if ./distill attest 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "provenance without image argument exits non-zero"
+        run: |
+          if ./distill provenance 2>/dev/null; then
+            echo "ERROR: expected non-zero exit" && exit 1
+          fi

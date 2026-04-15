@@ -1,0 +1,44 @@
+# container-structure-test configuration for debian-runtime
+# Run with: devbox run test <image:tag> examples/debian-runtime/test.yaml
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  envVars:
+    - key: LANG
+      value: en_US.UTF-8
+    - key: LC_ALL
+      value: en_US.UTF-8
+  user: "10001:10001"
+
+fileExistenceTests:
+  - name: "ca-certificates present"
+    path: /etc/ssl/certs/ca-certificates.crt
+    shouldExist: true
+
+  - name: "no apt binary"
+    path: /usr/bin/apt
+    shouldExist: false
+
+  - name: "no apt-get binary"
+    path: /usr/bin/apt-get
+    shouldExist: false
+
+  - name: "no dpkg binary"
+    path: /usr/bin/dpkg
+    shouldExist: false
+
+  - name: "appuser home directory exists"
+    path: /home/appuser
+    shouldExist: true
+
+commandTests:
+  - name: "sh is executable"
+    command: "/bin/sh"
+    args: ["-c", "echo ok"]
+    expectedOutput: ["ok"]
+
+  - name: "no package manager available"
+    command: "/bin/sh"
+    args: ["-c", "command -v apt-get || command -v dpkg || echo NONE"]
+    expectedOutput: ["NONE"]
