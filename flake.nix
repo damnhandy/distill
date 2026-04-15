@@ -28,7 +28,7 @@
             src = ./.;
 
             # Run `nix build` with vendorHash = pkgs.lib.fakeHash to compute this.
-            vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            vendorHash = "sha256-mBbmZK8u+vLskVpm0Y0aot3noXQ1J75cATGtmhVg5Pc=";
 
             ldflags = [
               "-s"
