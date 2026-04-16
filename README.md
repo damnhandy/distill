@@ -1,8 +1,8 @@
-# distill
-
 <p align="center">
-  <img src="assets/images/distill-icon.jpg" alt="distill" width="160" />
+  <img src="assets/images/distill-icon.jpg" alt="distill" width="300" />
 </p>
+
+# Distill
 
 <p align="center">
   <a href="https://github.com/damnhandy/distill/releases/latest"><img src="https://img.shields.io/github/v/release/damnhandy/distill?label=release&color=blue" alt="Latest release"></a>
