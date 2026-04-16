@@ -37,5 +37,6 @@ func init() {
 		newProvenanceCmd(),
 		newDoctorCmd(),
 		newVersionCmd(),
+		newMCPCmd(),
 	)
 }

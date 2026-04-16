@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "distill": {
+      "command": "distill",
+      "args": ["mcp"]
+    }
+  }
+}
