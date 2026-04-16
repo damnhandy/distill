@@ -78,15 +78,32 @@ func aptDockerfile(s *spec.ImageSpec) string {
 		strings.Join(s.Contents.Packages, ","))
 	fmt.Fprintf(&b, "    %s /chroot %s\n", s.Source.Releasever, aptMirror(s.Source.Image))
 
-	b.WriteString("\n# Block service-start attempts during Stage 2 configuration.\n")
-	b.WriteString("RUN echo 'exit 101' > /chroot/usr/sbin/policy-rc.d \\\n")
-	b.WriteString("    && chmod +x /chroot/usr/sbin/policy-rc.d\n")
+	// Ubuntu's init-system-helpers postinst calls multiple service management
+	// tools that hang inside a Docker build chroot:
+	//   - invoke-rc.d  → blocked by policy-rc.d
+	//   - deb-systemd-helper / deb-systemd-invoke → must be mocked directly
+	//   - systemctl    → must be mocked (not present in minbase, but searched)
+	// Replace all of them with no-op stubs before Stage 2 runs.
+	b.WriteString("\n# Stub out service/init tools to prevent hangs during Stage 2.\n")
+	b.WriteString("RUN printf '#!/bin/sh\\nexit 101\\n' > /chroot/usr/sbin/policy-rc.d \\\n")
+	b.WriteString("    && printf '#!/bin/sh\\nexit 0\\n'  > /chroot/usr/bin/deb-systemd-helper \\\n")
+	b.WriteString("    && printf '#!/bin/sh\\nexit 0\\n'  > /chroot/usr/bin/deb-systemd-invoke \\\n")
+	b.WriteString("    && printf '#!/bin/sh\\nexit 0\\n'  > /chroot/usr/bin/systemctl \\\n")
+	b.WriteString("    && chmod +x \\\n")
+	b.WriteString("        /chroot/usr/sbin/policy-rc.d \\\n")
+	b.WriteString("        /chroot/usr/bin/deb-systemd-helper \\\n")
+	b.WriteString("        /chroot/usr/bin/deb-systemd-invoke \\\n")
+	b.WriteString("        /chroot/usr/bin/systemctl\n")
 
 	b.WriteString("\n# Stage 2: run postinst scripts inside the chroot.\n")
 	b.WriteString("RUN chroot /chroot /debootstrap/debootstrap --second-stage\n")
 
-	b.WriteString("\n# Remove policy-rc.d — it must not exist in the final image.\n")
-	b.WriteString("RUN rm -f /chroot/usr/sbin/policy-rc.d\n")
+	b.WriteString("\n# Remove all stubs — none belong in the final runtime image.\n")
+	b.WriteString("RUN rm -f \\\n")
+	b.WriteString("    /chroot/usr/sbin/policy-rc.d \\\n")
+	b.WriteString("    /chroot/usr/bin/deb-systemd-helper \\\n")
+	b.WriteString("    /chroot/usr/bin/deb-systemd-invoke \\\n")
+	b.WriteString("    /chroot/usr/bin/systemctl\n")
 
 	if s.Accounts != nil && (len(s.Accounts.Groups) > 0 || len(s.Accounts.Users) > 0) {
 		b.WriteString("\n# Create groups and users inside the chroot.\n")
