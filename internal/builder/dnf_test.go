@@ -12,7 +12,7 @@ func baseSpec(t *testing.T, packages []string, variant string, accounts *spec.Ac
 	t.Helper()
 	return &spec.ImageSpec{
 		Name: "test-image",
-		Base: spec.BaseSpec{
+		Source: spec.SourceSpec{
 			Image:          "registry.access.redhat.com/ubi9/ubi",
 			Releasever:     "9",
 			PackageManager: "dnf",
@@ -162,7 +162,7 @@ func TestDNFDockerfile_Cleanup(t *testing.T) {
 func TestDNFDockerfile_ScratchStageMetadata(t *testing.T) {
 	s := &spec.ImageSpec{
 		Name: "my-image",
-		Base: spec.BaseSpec{
+		Source: spec.SourceSpec{
 			Image:          "registry.access.redhat.com/ubi9/ubi",
 			Releasever:     "9",
 			PackageManager: "dnf",
@@ -186,7 +186,7 @@ func TestDNFDockerfile_ScratchStageMetadata(t *testing.T) {
 func TestDNFDockerfile_RunAs(t *testing.T) {
 	s := &spec.ImageSpec{
 		Name: "my-image",
-		Base: spec.BaseSpec{
+		Source: spec.SourceSpec{
 			Image:          "registry.access.redhat.com/ubi9/ubi",
 			Releasever:     "9",
 			PackageManager: "dnf",

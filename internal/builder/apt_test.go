@@ -12,7 +12,7 @@ func aptSpec(t *testing.T, packages []string, variant string, accounts *spec.Acc
 	t.Helper()
 	return &spec.ImageSpec{
 		Name: "test-debian-image",
-		Base: spec.BaseSpec{
+		Source: spec.SourceSpec{
 			Image:          "debian:bookworm-slim",
 			Releasever:     "bookworm",
 			PackageManager: "apt",
@@ -162,7 +162,7 @@ func TestAPTDockerfile_DebootstrapInstall(t *testing.T) {
 func TestAPTDockerfile_ScratchStageMetadata(t *testing.T) {
 	s := &spec.ImageSpec{
 		Name: "my-debian-image",
-		Base: spec.BaseSpec{
+		Source: spec.SourceSpec{
 			Image:          "debian:bookworm-slim",
 			Releasever:     "bookworm",
 			PackageManager: "apt",

@@ -129,14 +129,14 @@ func enrichFromSpec(ctx context.Context, p *slsaPredicate, specPath string) erro
 	if p.Invocation.Parameters == nil {
 		p.Invocation.Parameters = map[string]string{}
 	}
-	p.Invocation.Parameters["baseImage"] = s.Base.Image
+	p.Invocation.Parameters["sourceImage"] = s.Source.Image
 
-	material := slsaMaterial{URI: s.Base.Image}
-	if digest, err := imageDigest(ctx, s.Base.Image); err == nil {
+	material := slsaMaterial{URI: s.Source.Image}
+	if digest, err := imageDigest(ctx, s.Source.Image); err == nil {
 		material.Digest = slsaDigestSet{"sha256": digest}
 		p.Metadata.Completeness.Materials = true
 	} else {
-		fmt.Fprintf(os.Stderr, "warning: could not resolve base image digest for %s: %v\n", s.Base.Image, err)
+		fmt.Fprintf(os.Stderr, "warning: could not resolve source image digest for %s: %v\n", s.Source.Image, err)
 	}
 	p.Materials = []slsaMaterial{material}
 

@@ -15,7 +15,7 @@ func TestParse_Valid(t *testing.T) {
 	yml := `
 name: test-image
 description: A test image
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
   releasever: "9"
 contents:
@@ -27,17 +27,17 @@ contents:
 	require.NoError(t, err)
 	assert.Equal(t, "test-image", spec.Name)
 	assert.Equal(t, "A test image", spec.Description)
-	assert.Equal(t, "registry.access.redhat.com/ubi9/ubi", spec.Base.Image)
-	assert.Equal(t, "9", spec.Base.Releasever)
+	assert.Equal(t, "registry.access.redhat.com/ubi9/ubi", spec.Source.Image)
+	assert.Equal(t, "9", spec.Source.Releasever)
 	assert.Equal(t, []string{"glibc", "ca-certificates"}, spec.Contents.Packages)
 	// package manager must be inferred from the UBI prefix → dnf
-	assert.Equal(t, "dnf", spec.Base.PackageManager)
+	assert.Equal(t, "dnf", spec.Source.PackageManager)
 }
 
 func TestParse_ExplicitPackageManager(t *testing.T) {
 	yml := `
 name: my-image
-base:
+source:
   image: someinternal.registry/custom-image
   releasever: "8"
   packageManager: dnf
@@ -47,7 +47,7 @@ contents:
 `
 	spec, err := Parse([]byte(yml))
 	require.NoError(t, err)
-	assert.Equal(t, "dnf", spec.Base.PackageManager)
+	assert.Equal(t, "dnf", spec.Source.PackageManager)
 }
 
 func TestParse_ValidationErrors(t *testing.T) {
@@ -59,7 +59,7 @@ func TestParse_ValidationErrors(t *testing.T) {
 		{
 			name: "missing name",
 			yaml: `
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
   releasever: "9"
 contents:
@@ -69,34 +69,34 @@ contents:
 			wantErr: "name is required",
 		},
 		{
-			name: "missing base.image",
+			name: "missing source.image",
 			yaml: `
 name: test
-base:
+source:
   releasever: "9"
 contents:
   packages:
     - glibc
 `,
-			wantErr: "base.image is required",
+			wantErr: "source.image is required",
 		},
 		{
-			name: "missing base.releasever",
+			name: "missing source.releasever",
 			yaml: `
 name: test
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
 contents:
   packages:
     - glibc
 `,
-			wantErr: "base.releasever is required",
+			wantErr: "source.releasever is required",
 		},
 		{
 			name: "missing packages",
 			yaml: `
 name: test
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
   releasever: "9"
 `,
@@ -105,7 +105,7 @@ base:
 		{
 			name: "multiple missing fields",
 			yaml: `
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
 `,
 			wantErr: "invalid image spec",
@@ -114,7 +114,7 @@ base:
 			name: "invalid variant",
 			yaml: `
 name: test
-base:
+source:
   image: registry.access.redhat.com/ubi9/ubi
   releasever: "9"
 contents:
@@ -123,6 +123,21 @@ contents:
 variant: immutable
 `,
 			wantErr: `variant must be "runtime" or "dev"`,
+		},
+		{
+			name: "destination with empty image",
+			yaml: `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - glibc
+destination:
+  releasever: latest
+`,
+			wantErr: "destination.image is required",
 		},
 	}
 
@@ -139,6 +154,22 @@ func TestParse_InvalidYAML(t *testing.T) {
 	_, err := Parse([]byte(":\tinvalid: yaml: ["))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parsing image spec")
+}
+
+// ----------------------------------------------------------------------------
+// DestinationSpec.Ref
+// ----------------------------------------------------------------------------
+
+func TestDestinationSpec_Ref(t *testing.T) {
+	t.Run("explicit releasever", func(t *testing.T) {
+		d := DestinationSpec{Image: "ghcr.io/example/myapp", Releasever: "1.2.3"}
+		assert.Equal(t, "ghcr.io/example/myapp:1.2.3", d.Ref())
+	})
+
+	t.Run("empty releasever defaults to latest", func(t *testing.T) {
+		d := DestinationSpec{Image: "ghcr.io/example/myapp"}
+		assert.Equal(t, "ghcr.io/example/myapp:latest", d.Ref())
+	})
 }
 
 // ----------------------------------------------------------------------------

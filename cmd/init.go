@@ -84,26 +84,30 @@ description: ""
 # "runtime" removes it (default); "dev" retains it for development images.
 variant: {{ .Variant }}
 
-# tags are the OCI image references applied to the built image.
-# Equivalent to passing -t to docker/podman build.
-{{- if .Tag }}
-tags:
-  - {{ .Tag }}
-{{- else }}
-# tags:
-#   - myregistry.io/{{ .Name }}:latest
-{{- end }}
-
 # platforms lists the target build platforms. Defaults to [linux/amd64, linux/arm64].
 platforms:
   - linux/amd64
   - linux/arm64
 
-base:
+# source is the distribution image used for the chroot bootstrap.
+source:
   image: {{ .Image }}
   releasever: "{{ .Releasever }}"
-  # packageManager is auto-inferred from the base image; set explicitly to override.
+  # packageManager is auto-inferred from the source image; set explicitly to override.
   # packageManager: {{ .PackageManager }}
+
+# destination is the OCI image reference applied to the built image.
+{{- if .DestinationImage }}
+destination:
+  image: {{ .DestinationImage }}
+{{- if .DestinationTag }}
+  releasever: {{ .DestinationTag }}
+{{- end }}
+{{- else }}
+# destination:
+#   image: myregistry.io/{{ .Name }}
+#   releasever: latest
+{{- end }}
 
 contents:
   packages:
@@ -163,12 +167,12 @@ cmd:
 
 func newInitCmd() *cobra.Command {
 	var (
-		name    string
-		base    string
-		variant string
-		output  string
-		tag     string
-		force   bool
+		name        string
+		base        string
+		variant     string
+		output      string
+		destination string
+		force       bool
 	)
 
 	cmd := &cobra.Command{
@@ -195,11 +199,11 @@ the chosen base distribution.
 
 When --base is omitted a generic template with placeholder values is written.`,
 		Example: `  distill init --base ubi9 --name myapp
-  distill init --base debian --name myservice --tag myregistry.io/myservice:latest
+  distill init --base debian --name myservice --destination myregistry.io/myservice:latest
   distill init --base ubi9 --variant dev --output dev.distill.yaml
   distill init --base registry.access.redhat.com/ubi9/ubi:9.4 --name myapp`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runInit(name, base, variant, output, tag, force)
+			return runInit(name, base, variant, output, destination, force)
 		},
 	}
 
@@ -209,13 +213,14 @@ When --base is omitted a generic template with placeholder values is written.`,
 	cmd.Flags().StringVarP(&variant, "variant", "v", "runtime",
 		`Image variant: "runtime" removes the package manager; "dev" retains it`)
 	cmd.Flags().StringVarP(&output, "output", "o", "image.distill.yaml", "Output file path")
-	cmd.Flags().StringVarP(&tag, "tag", "t", "", "Initial image tag (e.g. myregistry.io/myapp:latest)")
+	cmd.Flags().StringVarP(&destination, "destination", "d", "",
+		"Destination image reference (e.g. myregistry.io/myapp:latest)")
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Overwrite existing file")
 
 	return cmd
 }
 
-func runInit(name, base, variant, output, tag string, force bool) error {
+func runInit(name, base, variant, output, destination string, force bool) error {
 	if variant != "runtime" && variant != "dev" {
 		return fmt.Errorf("variant must be \"runtime\" or \"dev\", got %q", variant)
 	}
@@ -290,16 +295,20 @@ func runInit(name, base, variant, output, tag string, force bool) error {
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", output, err)
 	}
+	// Split destination (e.g. "myregistry.io/myapp:latest") into image and tag parts.
+	destImage, destTag := splitDestination(destination)
+
 	if err := initTemplate.Execute(f, map[string]any{
-		"Name":           name,
-		"Variant":        variant,
-		"Tag":            tag,
-		"Image":          image,
-		"Releasever":     releasever,
-		"PackageManager": packageManager,
-		"DefaultShell":   defaultShell,
-		"DefaultCmd":     defaultCmd,
-		"SamplePackages": samplePackages,
+		"Name":             name,
+		"Variant":          variant,
+		"DestinationImage": destImage,
+		"DestinationTag":   destTag,
+		"Image":            image,
+		"Releasever":       releasever,
+		"PackageManager":   packageManager,
+		"DefaultShell":     defaultShell,
+		"DefaultCmd":       defaultCmd,
+		"SamplePackages":   samplePackages,
 	}); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("rendering template: %w", err)
@@ -313,7 +322,24 @@ func runInit(name, base, variant, output, tag string, force bool) error {
 	case base == "":
 		fmt.Println("Edit the file and replace placeholder values before running distill build.")
 	case releasever == "VERSION":
-		fmt.Println("Set base.releasever to the distribution version (e.g. \"9\", \"bookworm\") before running distill build.")
+		fmt.Println("Set source.releasever to the distribution version (e.g. \"9\", \"bookworm\") before running distill build.")
 	}
 	return nil
+}
+
+// splitDestination splits a full OCI reference (e.g. "myregistry.io/myapp:latest")
+// into the image name and tag parts. If no tag is present the tag is returned empty
+// (the template will default to "latest" via the spec's DestinationSpec.Ref()).
+func splitDestination(ref string) (image, tag string) {
+	if ref == "" {
+		return "", ""
+	}
+	// Find the last colon that appears after the last slash (to avoid splitting
+	// on the port in a registry URL like myregistry.io:5000/myapp).
+	lastSlash := strings.LastIndex(ref, "/")
+	lastColon := strings.LastIndex(ref, ":")
+	if lastColon > lastSlash {
+		return ref[:lastColon], ref[lastColon+1:]
+	}
+	return ref, ""
 }

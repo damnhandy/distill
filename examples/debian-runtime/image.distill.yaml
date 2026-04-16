@@ -10,18 +10,20 @@ description: Minimal Debian Bookworm base runtime with no package manager
 # Use "dev" to retain it for development images.
 variant: runtime
 
-# tags are the OCI image references applied to the built image.
-tags:
-  - distill-example-debian-runtime:latest
-
 # platforms lists the target build platforms.
 platforms:
   - linux/amd64
   - linux/arm64
 
-base:
+# source is the distribution image used for the chroot bootstrap.
+source:
   image: debian:bookworm-slim
   releasever: bookworm
+
+# destination is the OCI image reference applied to the built image.
+destination:
+  image: ghcr.io/damnhandy/debian-distilled
+  releasever: latest
 
 contents:
   packages:

@@ -23,17 +23,16 @@ type ImageSpec struct {
 	// image. "runtime" removes it (default); "dev" retains it.
 	Variant string `yaml:"variant,omitempty"`
 
-	// Tags are the OCI image references to apply to the built image.
-	// Equivalent to passing -t to docker/podman build.
-	// When empty, the image is built but not tagged.
-	Tags []string `yaml:"tags,omitempty"`
-
 	// Platforms lists the target build platforms (e.g., linux/amd64, linux/arm64).
 	// Defaults to [linux/amd64, linux/arm64] when empty.
 	Platforms []string `yaml:"platforms,omitempty"`
 
-	// Base identifies the source distribution used for the chroot bootstrap.
-	Base BaseSpec `yaml:"base"`
+	// Source identifies the distribution image used for the chroot bootstrap.
+	Source SourceSpec `yaml:"source"`
+
+	// Destination is the OCI image reference to apply to the built image.
+	// When omitted, the image is built but not tagged.
+	Destination *DestinationSpec `yaml:"destination,omitempty"`
 
 	// Contents declares what should be installed into the image.
 	Contents ContentsSpec `yaml:"contents"`
@@ -115,8 +114,8 @@ type ContentsSpec struct {
 	// future: Repositories, Keyring for custom package sources
 }
 
-// BaseSpec identifies the source distribution for the chroot bootstrap.
-type BaseSpec struct {
+// SourceSpec identifies the source distribution for the chroot bootstrap.
+type SourceSpec struct {
 	// Image is the OCI image reference used as the build host.
 	//   registry.access.redhat.com/ubi9/ubi  — RHEL/UBI9
 	//   debian:bookworm                       — Debian
@@ -129,8 +128,28 @@ type BaseSpec struct {
 	Releasever string `yaml:"releasever"`
 
 	// PackageManager selects the backend. Supported: "dnf", "apt".
-	// When omitted, distill infers from the base image reference.
+	// When omitted, distill infers from the source image reference.
 	PackageManager string `yaml:"packageManager,omitempty"`
+}
+
+// DestinationSpec defines the OCI image reference for the built output.
+type DestinationSpec struct {
+	// Image is the registry and image name, without a tag.
+	// Example: ghcr.io/damnhandy/rhel9-distilled
+	Image string `yaml:"image"`
+
+	// Releasever is the image tag applied to the built image.
+	// Defaults to "latest" when omitted.
+	Releasever string `yaml:"releasever,omitempty"`
+}
+
+// Ref returns the full OCI image reference in the form image:tag.
+// When Releasever is empty, "latest" is used as the tag.
+func (d DestinationSpec) Ref() string {
+	if d.Releasever == "" {
+		return d.Image + ":latest"
+	}
+	return d.Image + ":" + d.Releasever
 }
 
 // AccountsSpec defines the non-root users and groups inside the image.
@@ -198,8 +217,8 @@ func Parse(data []byte) (*ImageSpec, error) {
 	if err := validate(&s); err != nil {
 		return nil, err
 	}
-	if s.Base.PackageManager == "" {
-		s.Base.PackageManager = InferPackageManager(s.Base.Image)
+	if s.Source.PackageManager == "" {
+		s.Source.PackageManager = InferPackageManager(s.Source.Image)
 	}
 	return &s, nil
 }
@@ -209,11 +228,11 @@ func validate(s *ImageSpec) error {
 	if s.Name == "" {
 		errs = append(errs, "name is required")
 	}
-	if s.Base.Image == "" {
-		errs = append(errs, "base.image is required")
+	if s.Source.Image == "" {
+		errs = append(errs, "source.image is required")
 	}
-	if s.Base.Releasever == "" {
-		errs = append(errs, "base.releasever is required")
+	if s.Source.Releasever == "" {
+		errs = append(errs, "source.releasever is required")
 	}
 	if len(s.Contents.Packages) == 0 {
 		errs = append(errs, "at least one package is required under contents.packages")
@@ -221,13 +240,16 @@ func validate(s *ImageSpec) error {
 	if s.Variant != "" && s.Variant != "runtime" && s.Variant != "dev" {
 		errs = append(errs, `variant must be "runtime" or "dev"`)
 	}
+	if s.Destination != nil && s.Destination.Image == "" {
+		errs = append(errs, "destination.image is required when destination is set")
+	}
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid image spec:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	return nil
 }
 
-// InferPackageManager guesses the package manager from the base image reference.
+// InferPackageManager guesses the package manager from the source image reference.
 // Returns "dnf" for RPM-based images, "apt" for Debian/Ubuntu, and "dnf" as the
 // default for unrecognized enterprise images.
 func InferPackageManager(image string) string {

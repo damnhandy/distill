@@ -32,11 +32,11 @@ jobs:
           - name: rhel9-runtime
             spec: examples/rhel9-runtime/image.distill.yaml
             test: examples/rhel9-runtime/test.yaml
-            tag: distill-example-rhel9-runtime:latest
+            tag: ghcr.io/damnhandy/rhel9-distilled:latest
           - name: debian-runtime
             spec: examples/debian-runtime/image.distill.yaml
             test: examples/debian-runtime/test.yaml
-            tag: distill-example-debian-runtime:latest
+            tag: ghcr.io/damnhandy/debian-distilled:latest
 
     steps:
       - uses: actions/checkout@v6

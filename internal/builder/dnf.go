@@ -39,8 +39,8 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 	}
 
 	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
-	for _, tag := range s.Tags {
-		args = append(args, "-t", tag)
+	if s.Destination != nil && s.Destination.Image != "" {
+		args = append(args, "-t", s.Destination.Ref())
 	}
 	args = append(args, contextDir)
 
@@ -48,8 +48,8 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	for _, tag := range s.Tags {
-		fmt.Printf("\nBuilt %s\n", tag)
+	if s.Destination != nil && s.Destination.Image != "" {
+		fmt.Printf("\nBuilt %s\n", s.Destination.Ref())
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 
 	// ── Builder stage ────────────────────────────────────────────────────────
 
-	fmt.Fprintf(&b, "FROM %s AS builder\n", s.Base.Image)
+	fmt.Fprintf(&b, "FROM %s AS builder\n", s.Source.Image)
 
 	b.WriteString("\n# Initialize a fresh RPM database and seed the repo configuration.\n")
 	b.WriteString("RUN rpm --root /chroot --initdb \\\n")
@@ -70,7 +70,7 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("\n# Install packages into the chroot.\n")
 	b.WriteString("RUN dnf install -y -q \\\n")
 	b.WriteString("    --installroot /chroot \\\n")
-	fmt.Fprintf(&b, "    --releasever %s \\\n", s.Base.Releasever)
+	fmt.Fprintf(&b, "    --releasever %s \\\n", s.Source.Releasever)
 	b.WriteString("    --setopt=install_weak_deps=false \\\n")
 	b.WriteString("    --setopt=tsflags=nodocs \\\n")
 	b.WriteString("    --setopt=override_install_langs=en_US.utf8 \\\n")
@@ -112,7 +112,7 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 		b.WriteString("\n")
 	}
 
-	fmt.Fprintf(&b, "\nRUN dnf clean all --installroot /chroot --releasever %s\n", s.Base.Releasever)
+	fmt.Fprintf(&b, "\nRUN dnf clean all --installroot /chroot --releasever %s\n", s.Source.Releasever)
 
 	b.WriteString(pathsInstructions(s))
 

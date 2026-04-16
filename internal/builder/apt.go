@@ -37,8 +37,8 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 	}
 
 	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
-	for _, tag := range s.Tags {
-		args = append(args, "-t", tag)
+	if s.Destination != nil && s.Destination.Image != "" {
+		args = append(args, "-t", s.Destination.Ref())
 	}
 	args = append(args, contextDir)
 
@@ -46,8 +46,8 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	for _, tag := range s.Tags {
-		fmt.Printf("\nBuilt %s\n", tag)
+	if s.Destination != nil && s.Destination.Image != "" {
+		fmt.Printf("\nBuilt %s\n", s.Destination.Ref())
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func aptDockerfile(s *spec.ImageSpec) string {
 
 	// ── Builder stage ────────────────────────────────────────────────────────
 
-	fmt.Fprintf(&b, "FROM %s AS builder\n", s.Base.Image)
+	fmt.Fprintf(&b, "FROM %s AS builder\n", s.Source.Image)
 
 	b.WriteString("\n# Install debootstrap if not present in the base image.\n")
 	b.WriteString("RUN apt-get update -qq \\\n")
@@ -68,7 +68,7 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("# --variant=minbase installs only Essential:yes packages plus the explicit list.\n")
 	fmt.Fprintf(&b, "RUN debootstrap --variant=minbase --include=%s %s /chroot\n",
 		strings.Join(s.Contents.Packages, ","),
-		s.Base.Releasever,
+		s.Source.Releasever,
 	)
 
 	if s.Accounts != nil && (len(s.Accounts.Groups) > 0 || len(s.Accounts.Users) > 0) {

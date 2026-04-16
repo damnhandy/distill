@@ -28,13 +28,14 @@ the spec, so the correct package manager, repo configuration, and release
 version are always available. The populated chroot is then committed as a
 FROM scratch image.
 
-Target platforms and image tags are declared in the spec file:
+Target platforms and destination image are declared in the spec file:
 
   platforms:
     - linux/amd64
     - linux/arm64
-  tags:
-    - myregistry.io/myapp:latest
+  destination:
+    image: myregistry.io/myapp
+    releasever: latest
 
 Container runtime is selected automatically based on the host OS:
   macOS / Windows  — docker build
@@ -71,7 +72,7 @@ func runBuild(ctx context.Context, specFile, platformOverride string) error {
 		return err
 	}
 
-	b, err := builder.New(imageSpec.Base.PackageManager)
+	b, err := builder.New(imageSpec.Source.PackageManager)
 	if err != nil {
 		return err
 	}
@@ -81,8 +82,8 @@ func runBuild(ctx context.Context, specFile, platformOverride string) error {
 		platforms = []string{platformOverride}
 	}
 
-	fmt.Printf("Building %q\n  base:      %s\n  variant:   %s\n  platforms: %v\n  packages:  %d\n\n",
-		imageSpec.Name, imageSpec.Base.Image, imageSpec.Variant, platforms, len(imageSpec.Contents.Packages))
+	fmt.Printf("Building %q\n  source:    %s\n  variant:   %s\n  platforms: %v\n  packages:  %d\n\n",
+		imageSpec.Name, imageSpec.Source.Image, imageSpec.Variant, platforms, len(imageSpec.Contents.Packages))
 
 	for _, platform := range platforms {
 		if err := b.Build(ctx, imageSpec, platform); err != nil {
