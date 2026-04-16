@@ -87,10 +87,27 @@ For NixOS, add to your `configuration.nix`:
 }
 ```
 
-For **devbox** users in other projects, add to `devbox.json`:
+### Devbox
+
+> **Note:** Until distill is available in nixpkgs, install it via the GitHub
+> flake reference.
+
+```bash
+# Install latest
+devbox add github:damnhandy/distill#distill
+
+# Pin to a specific version
+devbox add github:damnhandy/distill/v0.1.0#distill
+```
+
+Or add directly to `devbox.json`:
 
 ```json
-{ "packages": ["github:damnhandy/distill#distill"] }
+{
+  "packages": [
+    "github:damnhandy/distill/v0.1.0#distill"
+  ]
+}
 ```
 
 ### go install
