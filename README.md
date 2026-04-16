@@ -1,19 +1,27 @@
 # distill
 
-Build minimal, immutable OCI images from enterprise Linux base distributions.
+What if you could strip an enterprise Linux image down to only what your application actually needs — and nothing else?
 
-distill is a CLI tool that takes a declarative `.distill.yaml` spec and produces a minimal
-`FROM scratch` OCI image using a chroot bootstrap strategy. It is a
-distro-agnostic alternative to Google's [distroless](https://github.com/GoogleContainerTools/distroless)
-images for teams that need images rooted in RHEL, UBI, Debian, or Ubuntu.
+`distill` is a CLI tool that takes a declarative `.distill.yaml` spec and produces a minimal `FROM scratch` OCI image using a chroot bootstrap strategy. The result — a **distilled image** — contains only the packages you listed, runs as a non-root user by default, and ships with a CVE scan, SBOM, and SLSA provenance baked into the build process. It is a self-hostable, distro-agnostic alternative to [Google distroless](https://github.com/GoogleContainerTools/distroless) or [Docker Hardened Images](https://www.docker.com/products/hardened-images/) for teams that need images rooted in RHEL, UBI, Debian, or Ubuntu.
+
+This project started as a collection of shell scripts before being rewritten as a proper CLI.
+
+### How much smaller?
+
+| Base image | Size | Distilled image | Size | Reduction |
+|---|---|---|---|---|
+| `docker.io/redhat/ubi9` | ~214 MB | `rhel9-distilled` | ~28 MB | ~87% |
+| `debian:bookworm-slim` | ~74 MB | `debian-distilled` | ~17 MB | ~77% |
+
+> Sizes are uncompressed. Results vary by package selection — see [`examples/`](./examples/) for reproducible specs.
 
 ## How it works
 
-1. Reads a declarative `.distill.yaml` spec describing the desired packages and configuration
-2. Runs a multi-stage Docker/Podman build using the target base image — so the correct package manager, repos, and release version are always available
-3. Installs only the listed packages into an isolated chroot directory inside the builder stage
-4. Copies the chroot into a `FROM scratch` final stage
-5. Commits the result as a minimal OCI image
+1. Reads your `.distill.yaml` spec to know which packages and configuration you want
+2. Spins up a multi-stage Docker/Podman build using your chosen base image — so the correct package manager, repos, and release version are always in play
+3. Installs only the packages you listed into an isolated chroot inside the builder stage
+4. Copies that chroot into a `FROM scratch` final stage — the package manager never makes it in
+5. Produces a lean, immutable distilled image ready to tag and push
 
 The package manager is never present in the final image — not removed as a layer, but never copied in to begin with. This is the same reason Chainguard built [`apko`](https://github.com/chainguard-dev/apko) rather than using Dockerfiles; distill is the equivalent for RPM and APT-based enterprise distributions.
 
@@ -29,6 +37,63 @@ The package manager is never present in the final image — not removed as a lay
 | Ubuntu 24.04 | APT | `ubuntu:24.04` |
 
 ## Installation
+
+We recommend [Devbox](https://www.jetify.com/docs/devbox) — it is what we use day-to-day and gives you a fully isolated dev environment. [Nix](https://nixos.org/) installs are supported too, since Devbox is built on top of it. If you just want the binary without the isolation layer, [Homebrew](https://brew.sh) works great on macOS and Linux.
+
+### Devbox
+
+> **Note:** Until distill is available in nixpkgs, install it via the GitHub flake reference.
+
+```bash
+# Install latest
+devbox add github:damnhandy/distill#distill
+
+# Pin to a specific version
+devbox add github:damnhandy/distill/v0.2.0#distill
+```
+
+Or add directly to `devbox.json`:
+
+```json
+{
+  "packages": [
+    "github:damnhandy/distill/v0.2.0#distill"
+  ]
+}
+```
+
+### Nix / NixOS
+
+```bash
+# Install to your profile
+nix profile install github:damnhandy/distill
+
+# Pin to a specific version
+nix profile install github:damnhandy/distill/v0.2.0
+
+# Run without installing
+nix run github:damnhandy/distill -- --help
+```
+
+For NixOS, add to your `configuration.nix`:
+
+```nix
+{ inputs, ... }: {
+  environment.systemPackages = [ inputs.distill.packages.${system}.default ];
+}
+```
+
+### go install
+
+```bash
+go install github.com/damnhandy/distill@latest
+```
+
+> **Note:** Binaries installed this way report version `dev` — Go's toolchain does not
+> support build-time version injection via `go install`. All other installation methods
+> report the correct release version.
+
+---
 
 ### Homebrew (macOS and Linux)
 
@@ -47,7 +112,7 @@ curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/insta
 curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh | sh -s -- -b ~/.local/bin
 
 # Install a specific version
-curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh | sh -s -- v1.2.3
+curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh | sh -s -- v0.2.0
 ```
 
 ### RPM (RHEL, Fedora, CentOS Stream, Rocky Linux, AlmaLinux)
@@ -66,62 +131,6 @@ Download the `.deb` from the [latest release](https://github.com/damnhandy/disti
 sudo dpkg -i distill_<version>_linux_amd64.deb
 ```
 
-### Nix / NixOS
-
-```bash
-# Install to your profile
-nix profile install github:damnhandy/distill
-
-# Pin to a specific version
-nix profile install github:damnhandy/distill/v1.2.3
-
-# Run without installing
-nix run github:damnhandy/distill -- --help
-```
-
-For NixOS, add to your `configuration.nix`:
-
-```nix
-{ inputs, ... }: {
-  environment.systemPackages = [ inputs.distill.packages.${system}.default ];
-}
-```
-
-### Devbox
-
-> **Note:** Until distill is available in nixpkgs, install it via the GitHub
-> flake reference.
-
-```bash
-# Install latest
-devbox add github:damnhandy/distill#distill
-
-# Pin to a specific version
-devbox add github:damnhandy/distill/v0.1.0#distill
-```
-
-Or add directly to `devbox.json`:
-
-```json
-{
-  "packages": [
-    "github:damnhandy/distill/v0.1.0#distill"
-  ]
-}
-```
-
-### go install
-
-```bash
-go install github.com/damnhandy/distill@latest
-```
-
-> **Note:** Binaries installed this way report version `dev` — Go's toolchain does not
-> support build-time version injection via `go install`. All other installation methods
-> report the correct release version.
-
----
-
 ## Requirements
 
 - macOS or Windows with Docker Desktop 3.0+, or Linux/WSL2 with Podman 3.0+
@@ -133,6 +142,8 @@ go install github.com/damnhandy/distill@latest
 Run `distill doctor` to check your environment and get install instructions for any missing tools.
 
 ## Getting started
+
+The fastest path to your first distilled image:
 
 ```bash
 # Scaffold a new spec file
@@ -210,7 +221,7 @@ distill publish --spec image.distill.yaml --platform linux/amd64
 
 ### Scan, attest, and provenance (standalone)
 
-These commands operate on any OCI image reference — useful for one-off inspection or images not built with distill.
+These commands work on any OCI image reference — handy for one-off inspection or images not built with distill.
 
 ```bash
 # Scan for CVEs
@@ -246,9 +257,9 @@ slsa-verifier verify-artifact \
 
 ## Supply-chain security
 
-distill applies supply-chain security at two levels:
+Shipping a small image is only half the story — you also need to know what's in it and be able to prove it. Every distilled image you build with distill gets a CVE scan, an SPDX SBOM, and SLSA provenance attached automatically as part of `distill publish`.
 
-**Images you build with distill:**
+**Distilled images you build:**
 
 | Artifact | Tool | Automated | Standalone |
 |---|---|---|---|
@@ -348,12 +359,14 @@ pipeline:
 
 ## Examples
 
-See [`examples/`](./examples/):
+See [`examples/`](./examples/) for complete, working specs:
 
-- [`rhel9-runtime/`](./examples/rhel9-runtime/) — minimal RHEL9/UBI9 base, target ≤30MB
-- [`debian-runtime/`](./examples/debian-runtime/) — minimal Debian Bookworm base
+- [`rhel9-runtime/`](./examples/rhel9-runtime/) — minimal RHEL9/UBI9 distilled image, target ≤30 MB
+- [`debian-runtime/`](./examples/debian-runtime/) — minimal Debian Bookworm distilled image, target ≤20 MB
 
 ## Comparison
+
+How distill compares to other approaches to building minimal container images:
 
 | | Google distroless | ubi9-micro | Docker Hardened Images | distill |
 |---|---|---|---|---|
