@@ -7,9 +7,9 @@ import (
 )
 
 func newMCPCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "mcp",
-		Short: "Start MCP stdio server for agent integration",
+		Short: "MCP server and agent configuration",
 		Long: `mcp starts a Model Context Protocol (MCP) stdio server that exposes
 distill's capabilities as typed tools. Any MCP-compatible agent or client
 (Claude Code, Claude Desktop, Cursor, custom agents) can connect to it by
@@ -28,19 +28,13 @@ Resources:
   distill://spec/schema  — JSON Schema for .distill.yaml ImageSpec
   distill://bases        — supported base distributions and their defaults
 
-To use with Claude Code, add to .mcp.json in your project:
-  {
-    "mcpServers": {
-      "distill": {
-        "command": "distill",
-        "args": ["mcp"]
-      }
-    }
-  }`,
-		Args: cobra.NoArgs,
+Run "distill mcp configure --help" to register the server with your agent.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			s := mcpserver.New(Version)
 			return s.Serve()
 		},
 	}
+
+	cmd.AddCommand(newMCPConfigureCmd())
+	return cmd
 }
