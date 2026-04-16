@@ -1,5 +1,14 @@
 # distill
 
+<p align="center">
+  <img src="assets/images/distill-icon.jpg" alt="distill" width="160" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/damnhandy/distill/releases/latest"><img src="https://img.shields.io/github/v/release/damnhandy/distill?label=release&color=blue" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0 license"></a>
+</p>
+
 What if you could strip an enterprise Linux image down to only what your application actually needs — and nothing else?
 
 `distill` is a CLI tool that takes a declarative `.distill.yaml` spec and produces a minimal `FROM scratch` OCI image using a chroot bootstrap strategy. The result — a **distilled image** — contains only the packages you listed, runs as a non-root user by default, and ships with a CVE scan, SBOM, and SLSA provenance baked into the build process. It is a self-hostable, distro-agnostic alternative to [Google distroless](https://github.com/GoogleContainerTools/distroless) or [Docker Hardened Images](https://www.docker.com/products/hardened-images/) for teams that need images rooted in RHEL, UBI, Debian, or Ubuntu.
