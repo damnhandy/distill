@@ -363,5 +363,5 @@ See [`examples/`](./examples/):
 | Audit trail (RPM/dpkg DB) | No | No | Yes | Yes |
 | SBOM at build time | No | No | Yes | Yes |
 | SLSA provenance | No | No | Yes | Yes |
-| Multi-distro | No (Debian only) | No (RHEL only) | Yes | Yes |
+| Multi-distro | No (Debian only) | No (RHEL only) | No (Wolfi/Alpine only) | Yes |
 | Self-hostable build | No | No | No | Yes |
