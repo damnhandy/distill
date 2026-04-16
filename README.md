@@ -1,4 +1,13 @@
-# distill
+<p align="center">
+  <img src="assets/images/distill-icon.jpg" alt="distill" width="300" />
+</p>
+
+# Distill
+
+<p align="center">
+  <a href="https://github.com/damnhandy/distill/releases/latest"><img src="https://img.shields.io/github/v/release/damnhandy/distill?label=release&color=blue" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0 license"></a>
+</p>
 
 What if you could strip an enterprise Linux image down to only what your application actually needs — and nothing else?
 
