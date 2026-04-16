@@ -68,12 +68,25 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("RUN apt-get update -qq \\\n")
 	b.WriteString("    && apt-get install -y -qq debootstrap\n")
 
-	b.WriteString("\n# Bootstrap a minimal rootfs.\n")
-	b.WriteString("# --variant=minbase installs only Essential:yes packages plus the explicit list.\n")
-	fmt.Fprintf(&b, "RUN debootstrap --variant=minbase --include=%s %s /chroot\n",
-		strings.Join(s.Contents.Packages, ","),
-		s.Source.Releasever,
-	)
+	// Ubuntu's Essential package set includes init-system-helpers, which calls
+	// invoke-rc.d in its postinst and hangs inside a Docker build chroot without
+	// a policy-rc.d guard. We use --foreign to split debootstrap into two stages
+	// so we can inject policy-rc.d before the configure scripts run. This is also
+	// the correct approach for Debian, so we apply it uniformly.
+	b.WriteString("\n# Stage 1: download and unpack packages only (no postinst scripts yet).\n")
+	fmt.Fprintf(&b, "RUN debootstrap --foreign --variant=minbase --include=%s \\\n",
+		strings.Join(s.Contents.Packages, ","))
+	fmt.Fprintf(&b, "    %s /chroot %s\n", s.Source.Releasever, aptMirror(s.Source.Image))
+
+	b.WriteString("\n# Block service-start attempts during Stage 2 configuration.\n")
+	b.WriteString("RUN echo 'exit 101' > /chroot/usr/sbin/policy-rc.d \\\n")
+	b.WriteString("    && chmod +x /chroot/usr/sbin/policy-rc.d\n")
+
+	b.WriteString("\n# Stage 2: run postinst scripts inside the chroot.\n")
+	b.WriteString("RUN chroot /chroot /debootstrap/debootstrap --second-stage\n")
+
+	b.WriteString("\n# Remove policy-rc.d — it must not exist in the final image.\n")
+	b.WriteString("RUN rm -f /chroot/usr/sbin/policy-rc.d\n")
 
 	if s.Accounts != nil && (len(s.Accounts.Groups) > 0 || len(s.Accounts.Users) > 0) {
 		b.WriteString("\n# Create groups and users inside the chroot.\n")
@@ -127,4 +140,14 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString(scratchStageInstructions(s))
 
 	return b.String()
+}
+
+// aptMirror returns the canonical package archive URL for the given base image.
+// debootstrap requires an explicit mirror when the host and target distro differ,
+// and Ubuntu requires its own archive even when the host is Ubuntu.
+func aptMirror(image string) string {
+	if strings.Contains(image, "ubuntu") {
+		return "http://archive.ubuntu.com/ubuntu"
+	}
+	return "http://deb.debian.org/debian"
 }
