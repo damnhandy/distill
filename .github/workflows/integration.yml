@@ -82,20 +82,50 @@ jobs:
             echo "ERROR: expected non-zero exit" && exit 1
           fi
 
-      - name: "scan without image argument exits non-zero"
+      - name: "scan without image argument or --spec exits non-zero"
         run: |
           if ./distill scan 2>/dev/null; then
             echo "ERROR: expected non-zero exit" && exit 1
           fi
 
-      - name: "attest without image argument exits non-zero"
+      - name: "attest without image argument or --spec exits non-zero"
         run: |
           if ./distill attest 2>/dev/null; then
             echo "ERROR: expected non-zero exit" && exit 1
           fi
 
-      - name: "provenance without image argument exits non-zero"
+      - name: "provenance without image argument or --spec exits non-zero"
         run: |
           if ./distill provenance 2>/dev/null; then
             echo "ERROR: expected non-zero exit" && exit 1
+          fi
+
+      - name: "write spec with no tags for --spec empty-tags tests"
+        run: |
+          cat > /tmp/notags.yaml <<'EOF'
+          name: test-image
+          base:
+            image: debian:bookworm-slim
+            releasever: "12"
+          contents:
+            packages:
+              - bash
+          EOF
+
+      - name: "scan --spec with empty tags exits non-zero"
+        run: |
+          if ./distill scan --spec /tmp/notags.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for empty tags" && exit 1
+          fi
+
+      - name: "attest --spec with empty tags exits non-zero"
+        run: |
+          if ./distill attest --spec /tmp/notags.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for empty tags" && exit 1
+          fi
+
+      - name: "provenance --spec with empty tags exits non-zero"
+        run: |
+          if ./distill provenance --spec /tmp/notags.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for empty tags" && exit 1
           fi
