@@ -6,7 +6,7 @@ What if you could strip an enterprise Linux image down to only what your applica
 
 This project started as a collection of shell scripts that used [Buildah](https://buildah.io/) to build images. The scripts produced small images, but Buildah wasn't the reason — the real trick was using chroot to install only the bare essentials into an isolated directory, then copying that into a `FROM scratch` image. Distill takes that same idea and wraps it into a simple, repeatable process.
 
-### How much smaller?
+## How much smaller?
 
 | Base image | Size | Distilled image | Size | Reduction |
 |---|---|---|---|---|
