@@ -22,9 +22,9 @@ func newDoctorCmd() *cobra.Command {
 and reports which are present, missing, or outdated.
 
 For each missing or outdated tool it prints an install or upgrade command
-appropriate for the package manager detected on your system (Homebrew, dnf,
-apt-get, or apk). When no package is available through a package manager, a
-link to the project's GitHub releases page is shown instead.
+appropriate for the package manager detected on your system (Devbox, Nix,
+Homebrew, dnf, apt-get, or apk). When no package is available through a
+package manager, a link to the project's GitHub releases page is shown instead.
 
 Tools checked:
   podman / docker   required by: build          (min: podman 4.0.0 / docker 20.10.0)

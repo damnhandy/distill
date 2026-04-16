@@ -177,11 +177,20 @@ func CheckAll(ctx context.Context) []DependencyStatus {
 }
 
 // DetectedPackageManager returns the first package manager found on PATH
-// from a priority-ordered list suitable for the current OS.
+// from a priority-ordered list. Devbox and Nix are checked first across all
+// platforms because they can be scoped to a project shell, unlike Homebrew,
+// dnf, apt-get, and apk which install tools globally.
+//
+// Priority: devbox > nix > brew (macOS) > dnf / apt-get / apk (Linux)
 func DetectedPackageManager() string {
+	if _, err := exec.LookPath("devbox"); err == nil {
+		return "devbox"
+	}
+	if _, err := exec.LookPath("nix"); err == nil {
+		return "nix"
+	}
 	switch runtime.GOOS {
 	case "darwin":
-		// Homebrew is the only realistic option on macOS for these tools.
 		if _, err := exec.LookPath("brew"); err == nil {
 			return "brew"
 		}
@@ -201,6 +210,8 @@ func DetectedPackageManager() string {
 var installHints = map[string]map[string]string{
 	"podman": {
 		"brew":    "brew install podman",
+		"devbox":  "devbox add podman",
+		"nix":     "nix profile install nixpkgs#podman",
 		"dnf":     "sudo dnf install -y podman",
 		"apt-get": "sudo apt-get install -y podman",
 		"apk":     "apk add podman",
@@ -209,19 +220,27 @@ var installHints = map[string]map[string]string{
 		"brew":    "brew install --cask docker",
 		"dnf":     "sudo dnf install -y docker-ce  # requires Docker CE repo",
 		"apt-get": "sudo apt-get install -y docker-ce  # requires Docker CE repo",
+		// docker is not available via devbox/nix on macOS — use Docker Desktop
 	},
 	"cosign": {
-		"brew": "brew install cosign",
-		// cosign has no distro packages; GitHub releases are the canonical source.
+		"brew":   "brew install cosign",
+		"devbox": "devbox add cosign",
+		"nix":    "nix profile install nixpkgs#cosign",
 	},
 	"syft": {
-		"brew": "brew install syft",
+		"brew":   "brew install syft",
+		"devbox": "devbox add syft",
+		"nix":    "nix profile install nixpkgs#syft",
 	},
 	"grype": {
-		"brew": "brew install grype",
+		"brew":   "brew install grype",
+		"devbox": "devbox add grype",
+		"nix":    "nix profile install nixpkgs#grype",
 	},
 	"skopeo": {
 		"brew":    "brew install skopeo",
+		"devbox":  "devbox add skopeo",
+		"nix":     "nix profile install nixpkgs#skopeo",
 		"dnf":     "sudo dnf install -y skopeo",
 		"apt-get": "sudo apt-get install -y skopeo",
 		"apk":     "apk add skopeo",
