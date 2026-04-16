@@ -49,3 +49,14 @@ environment:
 
 cmd:
   - /bin/sh
+
+# pipeline runs supply-chain steps when using distill build --pipeline
+# or distill publish.
+pipeline:
+  scan:
+    enabled: true
+    fail-on: critical
+  sbom:
+    enabled: true
+  provenance:
+    enabled: true
