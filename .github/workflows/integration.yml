@@ -100,32 +100,32 @@ jobs:
             echo "ERROR: expected non-zero exit" && exit 1
           fi
 
-      - name: "write spec with no tags for --spec empty-tags tests"
+      - name: "write spec with no destination for --spec no-destination tests"
         run: |
-          cat > /tmp/notags.yaml <<'EOF'
+          cat > /tmp/nodest.yaml <<'EOF'
           name: test-image
-          base:
+          source:
             image: debian:bookworm-slim
-            releasever: "12"
+            releasever: "bookworm"
           contents:
             packages:
               - bash
           EOF
 
-      - name: "scan --spec with empty tags exits non-zero"
+      - name: "scan --spec with no destination exits non-zero"
         run: |
-          if ./distill scan --spec /tmp/notags.yaml 2>/dev/null; then
-            echo "ERROR: expected non-zero exit for empty tags" && exit 1
+          if ./distill scan --spec /tmp/nodest.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for missing destination" && exit 1
           fi
 
-      - name: "attest --spec with empty tags exits non-zero"
+      - name: "attest --spec with no destination exits non-zero"
         run: |
-          if ./distill attest --spec /tmp/notags.yaml 2>/dev/null; then
-            echo "ERROR: expected non-zero exit for empty tags" && exit 1
+          if ./distill attest --spec /tmp/nodest.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for missing destination" && exit 1
           fi
 
-      - name: "provenance --spec with empty tags exits non-zero"
+      - name: "provenance --spec with no destination exits non-zero"
         run: |
-          if ./distill provenance --spec /tmp/notags.yaml 2>/dev/null; then
-            echo "ERROR: expected non-zero exit for empty tags" && exit 1
+          if ./distill provenance --spec /tmp/nodest.yaml 2>/dev/null; then
+            echo "ERROR: expected non-zero exit for missing destination" && exit 1
           fi

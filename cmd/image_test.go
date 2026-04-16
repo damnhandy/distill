@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,17 +20,18 @@ func TestResolveImage(t *testing.T) {
 		return p
 	}
 
-	specWithTags := func(t *testing.T, tags ...string) string {
+	baseSpec := "name: test-image\nsource:\n  image: debian:bookworm-slim\n  releasever: \"bookworm\"\ncontents:\n  packages:\n    - bash\n"
+
+	specWithDestination := func(t *testing.T, image, releasever string) string {
 		t.Helper()
-		var b strings.Builder
-		b.WriteString("name: test-image\nbase:\n  image: debian:bookworm-slim\n  releasever: \"12\"\ncontents:\n  packages:\n    - bash\n")
-		if len(tags) > 0 {
-			b.WriteString("tags:\n")
-			for _, tag := range tags {
-				b.WriteString("  - " + tag + "\n")
+		s := baseSpec
+		if image != "" {
+			s += "destination:\n  image: " + image + "\n"
+			if releasever != "" {
+				s += "  releasever: " + releasever + "\n"
 			}
 		}
-		return writeSpec(t, b.String())
+		return writeSpec(t, s)
 	}
 
 	tests := []struct {
@@ -56,19 +56,19 @@ func TestResolveImage(t *testing.T) {
 			// specPath set below in the test body
 		},
 		{
-			name:      "spec with single tag",
+			name:      "spec with destination image and releasever",
 			cmdName:   "scan",
 			wantImage: "ghcr.io/damnhandy/rhel9-distilled:latest",
 		},
 		{
-			name:      "spec with multiple tags returns first",
+			name:      "spec with destination image no releasever defaults to latest",
 			cmdName:   "attest",
 			wantImage: "ghcr.io/damnhandy/app:latest",
 		},
 		{
-			name:    "spec with empty tags",
+			name:    "spec with no destination",
 			cmdName: "scan",
-			wantErr: "has no tags defined",
+			wantErr: "has no destination defined",
 		},
 		{
 			name:    "spec path does not exist",
@@ -96,13 +96,13 @@ func TestResolveImage(t *testing.T) {
 
 			switch tt.name {
 			case "positional arg wins over spec":
-				specPath = specWithTags(t, "ghcr.io/damnhandy/other:latest")
-			case "spec with single tag":
-				specPath = specWithTags(t, "ghcr.io/damnhandy/rhel9-distilled:latest")
-			case "spec with multiple tags returns first":
-				specPath = specWithTags(t, "ghcr.io/damnhandy/app:latest", "ghcr.io/damnhandy/app:1.0")
-			case "spec with empty tags":
-				specPath = specWithTags(t) // no tags
+				specPath = specWithDestination(t, "ghcr.io/damnhandy/other", "latest")
+			case "spec with destination image and releasever":
+				specPath = specWithDestination(t, "ghcr.io/damnhandy/rhel9-distilled", "latest")
+			case "spec with destination image no releasever defaults to latest":
+				specPath = specWithDestination(t, "ghcr.io/damnhandy/app", "")
+			case "spec with no destination":
+				specPath = specWithDestination(t, "", "")
 			case "spec path does not exist":
 				specPath = "/nonexistent/path/image.distill.yaml"
 			case "spec with invalid YAML":
