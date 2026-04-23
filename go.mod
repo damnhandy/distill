@@ -1,11 +1,9 @@
 module github.com/damnhandy/distill
 
-go 1.23.0
-
-toolchain go1.24.0
+go 1.25.5
 
 require (
-	github.com/mark3labs/mcp-go v0.48.0
+	github.com/mark3labs/mcp-go v0.49.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1
