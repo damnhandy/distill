@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/damnhandy/distill/internal/spec"
@@ -19,11 +20,8 @@ func artifactsForPlatform(artifacts []spec.ArtifactSpec, platform string) []spec
 			out = append(out, a)
 			continue
 		}
-		for _, p := range a.Platforms {
-			if p == platform {
-				out = append(out, a)
-				break
-			}
+		if slices.Contains(a.Platforms, platform) {
+			out = append(out, a)
 		}
 	}
 	return out
