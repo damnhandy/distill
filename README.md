@@ -270,6 +270,28 @@ slsa-verifier verify-artifact \
   --source-uri github.com/damnhandy/distill
 ```
 
+### MCP server
+
+`distill mcp` starts a [Model Context Protocol](https://modelcontextprotocol.io/) stdio server that exposes distill's capabilities as typed tools for AI coding agents (Claude Code, GitHub Copilot, Cursor, and any other MCP-compatible client).
+
+```bash
+# Register with Claude Code for the current project (writes .mcp.json)
+distill mcp configure --tool claude
+
+# Register globally for Claude Code (all projects on this machine)
+distill mcp configure --tool claude --scope user
+
+# Register with GitHub Copilot in VS Code for the current project
+distill mcp configure --tool copilot
+
+# Register globally for GitHub Copilot in VS Code
+distill mcp configure --tool copilot --scope user
+```
+
+Tools exposed: `validate_spec`, `scaffold_spec`, `build_image`, `publish_image`, `scan_image`, `generate_sbom`, `check_dependencies`
+
+Resources: `distill://spec/schema` (JSON Schema for `.distill.yaml`), `distill://bases` (supported base distributions and their defaults)
+
 ## Supply-chain security
 
 Shipping a small image is only half the story — you also need to know what's in it and be able to prove it. Every distilled image you build with distill gets a CVE scan, an SPDX SBOM, and SLSA provenance attached automatically as part of `distill publish`.
@@ -321,6 +343,26 @@ contents:
   packages:                     # required — list of packages to install
     - string
 
+  repositories:                 # optional — additional package repositories
+    - name: string              # required — repo ID (letters, digits, hyphens, dots, underscores)
+      url: string               # required — base repository URL
+      gpg-key: string           # optional — URL or path to GPG public key
+      # APT-only fields:
+      suite: string             # required for APT — distribution suite (e.g. "noble", "stable")
+      components: [string]      # optional — APT components; defaults to ["main"]
+      arch: [string]            # optional — APT architectures; inferred from platforms if empty
+
+  artifacts:                    # optional — files to install from HTTP or the local filesystem
+    - type: http | local        # required — artifact source kind
+      url: string               # required for type: http — download URL
+      path: string              # required for type: local — source path (relative to spec file)
+      sha256: string            # optional (http only) — expected hex checksum
+      dest: string              # required — destination path inside the image
+      extract: string           # optional (http only) — tar.gz | tar.bz2 | tar.xz | zip
+      strip: int                # optional (http only) — leading path components to strip (tar only)
+      mode: string              # optional — octal permission string (e.g. "0755")
+      platforms: [string]       # optional — restrict artifact to listed platforms only
+
 accounts:                       # optional
   run-as: string                # user to run the container as (USER in Dockerfile)
   users:
@@ -357,6 +399,24 @@ paths:
     uid: 10001
     gid: 10001
     mode: "0755"
+  - type: file
+    path: /etc/myapp/config.toml
+    content: |                  # inline file content (file type only)
+      [server]
+      port = 8080
+    uid: 10001
+    gid: 10001
+    mode: "0644"
+  - type: symlink
+    path: /usr/local/bin/myapp
+    source: /opt/myapp/bin/myapp  # symlink target (symlink type only)
+
+# runtime installs a language runtime from an upstream binary release rather than
+# from the distro package manager. Optional.
+runtime:
+  type: nodejs | temurin | python  # required — runtime identifier
+  version: string                  # required — exact upstream release version
+  sha256: string                   # required — expected checksum of the upstream archive
 
 # pipeline declares supply-chain steps that run after distill build --pipeline
 # or distill publish. Omit any sub-section to disable that step.
@@ -377,7 +437,12 @@ pipeline:
 See [`examples/`](./examples/) for complete, working specs:
 
 - [`rhel9-runtime/`](./examples/rhel9-runtime/) — minimal RHEL9/UBI9 distilled image, target ≤30 MB
+- [`centos-stream9-runtime/`](./examples/centos-stream9-runtime/) — minimal CentOS Stream 9 distilled image
+- [`rocky9-runtime/`](./examples/rocky9-runtime/) — minimal Rocky Linux 9 distilled image
+- [`alma9-runtime/`](./examples/alma9-runtime/) — minimal AlmaLinux 9 distilled image
 - [`debian-runtime/`](./examples/debian-runtime/) — minimal Debian Bookworm distilled image, target ≤20 MB
+- [`ubuntu-runtime/`](./examples/ubuntu-runtime/) — minimal Ubuntu 24.04 distilled image
+- [`rhel9-aws-devtools/`](./examples/rhel9-aws-devtools/) — RHEL9 shell image with AWS CLI v2 and Starship; demonstrates `contents.artifacts`, `paths` (symlink + file), and per-platform artifact filtering
 
 ## Comparison
 

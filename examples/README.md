@@ -12,6 +12,7 @@ configuration.
 | [`alma9-runtime/`](./alma9-runtime/) | AlmaLinux 9 | ≤30MB | RHEL-compatible community rebuild |
 | [`debian-runtime/`](./debian-runtime/) | Debian Bookworm | ≤20MB | APT backend validation |
 | [`ubuntu-runtime/`](./ubuntu-runtime/) | Ubuntu 24.04 | ≤20MB | Ubuntu LTS on the APT backend |
+| [`rhel9-aws-devtools/`](./rhel9-aws-devtools/) | RHEL9 / UBI9 | — | AWS CLI v2 + Starship via `contents.artifacts`; demonstrates symlinks and per-platform filtering |
 
 ## Building an example
 
