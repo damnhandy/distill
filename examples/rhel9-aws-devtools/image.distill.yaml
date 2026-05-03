@@ -1,0 +1,121 @@
+name: rhel9-aws-devtools
+description: Minimal RHEL9 shell environment with AWS CLI v2 and Starship prompt
+
+variant: runtime
+
+platforms:
+  - linux/amd64
+  - linux/arm64
+
+source:
+  image: docker.io/redhat/ubi9
+  releasever: "9"
+
+destination:
+  image: ghcr.io/damnhandy/rhel9-aws-devtools
+  releasever: latest
+
+contents:
+  packages:
+    - bash
+    - coreutils
+    - glibc
+    - glibc-langpack-en
+    - ca-certificates
+    - less
+    - shadow-utils
+
+  artifacts:
+    # AWS CLI v2 — AWS publishes GPG signatures rather than SHA256 checksums,
+    # so sha256 is omitted here. Use a versioned URL in production to pin releases:
+    # https://awscli.amazonaws.com/awscli-exe-linux-x86_64-<version>.zip
+    - type: http
+      url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+      dest: /usr/local/aws-cli
+      extract: zip
+      platforms: [linux/amd64]
+
+    - type: http
+      url: https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip
+      dest: /usr/local/aws-cli
+      extract: zip
+      platforms: [linux/arm64]
+
+    # Starship v1.25.1 — musl builds carry no glibc dependency
+    - type: http
+      url: https://github.com/starship/starship/releases/download/v1.25.1/starship-x86_64-unknown-linux-musl.tar.gz
+      sha256: c6ddd3ecb9c0071a2ad38d98cee748160066b7c4f197421268058f4a5d6f8504
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/amd64]
+
+    - type: http
+      url: https://github.com/starship/starship/releases/download/v1.25.1/starship-aarch64-unknown-linux-musl.tar.gz
+      sha256: 01517aab398959ea9ea73bdb4f032ea4dbb51dff5c8e5eb05b4a1b9b7ab872b8
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/arm64]
+
+accounts:
+  run-as: devuser
+  users:
+    - name: devuser
+      uid: 10001
+      gid: 10001
+      shell: /bin/bash
+  groups:
+    - name: devuser
+      gid: 10001
+
+environment:
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
+  STARSHIP_CONFIG: /etc/starship/starship.toml
+
+paths:
+  # Point /usr/local/bin/aws at the self-contained binary inside the extracted zip.
+  # The AWS CLI zip extracts to aws/dist/aws — a Python zipapp with a bundled
+  # interpreter that needs no additional runtime dependencies.
+  - type: symlink
+    path: /usr/local/bin/aws
+    source: /usr/local/aws-cli/aws/dist/aws
+
+  - type: directory
+    path: /etc/starship
+
+  # Starship config: show the active AWS_PROFILE and region in the prompt.
+  # Set AWS_PROFILE to the name of the assumed role to make it visible.
+  - type: file
+    path: /etc/starship/starship.toml
+    content: |
+      "$schema" = 'https://starship.rs/config-schema.json'
+
+      [aws]
+      symbol = "☁️  "
+      format = '[$symbol($profile )(\($region\))]($style) '
+      style = "bold yellow"
+      force_display = true
+
+      [character]
+      success_symbol = "[❯](bold green)"
+      error_symbol = "[❯](bold red)"
+
+  # Initialize Starship for every interactive bash session.
+  # UBI9's /etc/bashrc sources /etc/profile.d/*.sh for both login and
+  # interactive non-login shells.
+  - type: file
+    path: /etc/profile.d/starship.sh
+    content: |
+      eval "$(starship init bash)"
+    mode: "0644"
+
+cmd:
+  - /bin/bash
+  - --login
+
+pipeline:
+  scan:
+    enabled: true
+    fail-on: critical
+  sbom:
+    enabled: true
