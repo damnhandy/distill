@@ -1,0 +1,15 @@
+# Grype ignore rules for known-unfixable vulnerabilities.
+#
+# Rules are scoped as tightly as possible — by CVE, package name, and type —
+# so that the same CVE in a different context (e.g. an OS-managed Python)
+# still triggers a failure.
+
+ignore:
+  # CVE-2026-6100 affects Python 3.14.x and is present in the Python
+  # interpreter bundled inside the AWS CLI v2 self-contained binary
+  # (/usr/local/aws-cli/aws/dist/python3). It is not exploitable through
+  # normal CLI usage and cannot be fixed without an upstream AWS CLI release.
+  - vulnerability: CVE-2026-6100
+    package:
+      name: python
+      type: binary
