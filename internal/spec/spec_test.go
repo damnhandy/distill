@@ -358,6 +358,167 @@ func TestRunAsUser(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
+// Repositories and Artifacts validation
+// ----------------------------------------------------------------------------
+
+func TestParse_Repositories_Valid(t *testing.T) {
+	yml := `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - terraform
+  repositories:
+    - name: hashicorp
+      url: https://rpm.releases.hashicorp.com/RHEL/$releasever/$basearch/stable
+      gpg-key: https://rpm.releases.hashicorp.com/gpg
+`
+	s, err := Parse([]byte(yml))
+	require.NoError(t, err)
+	require.Len(t, s.Contents.Repositories, 1)
+	assert.Equal(t, "hashicorp", s.Contents.Repositories[0].Name)
+	assert.Equal(t, "https://rpm.releases.hashicorp.com/RHEL/$releasever/$basearch/stable", s.Contents.Repositories[0].URL)
+	assert.Equal(t, "https://rpm.releases.hashicorp.com/gpg", s.Contents.Repositories[0].GPGKey)
+}
+
+func TestParse_Repositories_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name: "missing repo name",
+			yaml: `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - glibc
+  repositories:
+    - url: https://example.com/repo
+`,
+			wantErr: "contents.repositories[0].name is required",
+		},
+		{
+			name: "missing repo url",
+			yaml: `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - glibc
+  repositories:
+    - name: myrepo
+`,
+			wantErr: "contents.repositories[0].url is required",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte(tc.yaml))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestParse_Artifacts_Valid(t *testing.T) {
+	yml := `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - glibc
+  artifacts:
+    - type: http
+      url: https://example.com/tool
+      sha256: abc123
+      dest: /usr/local/bin/tool
+      mode: "0755"
+    - type: local
+      path: ./dist/mytool
+      dest: /usr/local/bin/mytool
+      platforms: [linux/amd64]
+`
+	s, err := Parse([]byte(yml))
+	require.NoError(t, err)
+	require.Len(t, s.Contents.Artifacts, 2)
+	assert.Equal(t, "http", s.Contents.Artifacts[0].Type)
+	assert.Equal(t, "https://example.com/tool", s.Contents.Artifacts[0].URL)
+	assert.Equal(t, "abc123", s.Contents.Artifacts[0].SHA256)
+	assert.Equal(t, "/usr/local/bin/tool", s.Contents.Artifacts[0].Dest)
+	assert.Equal(t, "local", s.Contents.Artifacts[1].Type)
+	assert.Equal(t, []string{"linux/amd64"}, s.Contents.Artifacts[1].Platforms)
+}
+
+func TestParse_Artifacts_Validation(t *testing.T) {
+	baseYAML := func(artifacts string) string {
+		return `
+name: test
+source:
+  image: registry.access.redhat.com/ubi9/ubi
+  releasever: "9"
+contents:
+  packages:
+    - glibc
+  artifacts:
+` + artifacts
+	}
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "missing type",
+			yaml:    baseYAML("    - url: https://example.com/tool\n      dest: /usr/bin/tool\n"),
+			wantErr: "contents.artifacts[0].type is required",
+		},
+		{
+			name:    "invalid type",
+			yaml:    baseYAML("    - type: ftp\n      dest: /usr/bin/tool\n"),
+			wantErr: `contents.artifacts[0].type "ftp" is invalid`,
+		},
+		{
+			name:    "http missing url",
+			yaml:    baseYAML("    - type: http\n      dest: /usr/bin/tool\n"),
+			wantErr: "contents.artifacts[0].url is required for type http",
+		},
+		{
+			name:    "local missing path",
+			yaml:    baseYAML("    - type: local\n      dest: /usr/bin/tool\n"),
+			wantErr: "contents.artifacts[0].path is required for type local",
+		},
+		{
+			name:    "missing dest",
+			yaml:    baseYAML("    - type: http\n      url: https://example.com/tool\n"),
+			wantErr: "contents.artifacts[0].dest is required",
+		},
+		{
+			name:    "invalid extract",
+			yaml:    baseYAML("    - type: http\n      url: https://example.com/t\n      dest: /tmp\n      extract: rar\n"),
+			wantErr: `contents.artifacts[0].extract "rar" is invalid`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse([]byte(tc.yaml))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+// ----------------------------------------------------------------------------
 // inferPackageManager
 // ----------------------------------------------------------------------------
 

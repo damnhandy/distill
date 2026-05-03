@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -90,8 +91,9 @@ func runPublish(ctx context.Context, specFile, platformOverride string, skipBuil
 		}
 		fmt.Printf("Building %q\n  source:    %s\n  variant:   %s\n  platforms: %v\n  packages:  %d\n\n",
 			imageSpec.Name, imageSpec.Source.Image, imageSpec.Variant, platforms, len(imageSpec.Contents.Packages))
+		opts := builder.BuildOptions{SourceDir: filepath.Dir(specFile)}
 		for _, platform := range platforms {
-			if err := b.Build(ctx, imageSpec, platform); err != nil {
+			if err := b.Build(ctx, imageSpec, platform, opts); err != nil {
 				return err
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -114,9 +115,10 @@ func handleBuildImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 		platforms = []string{platform}
 	}
 
+	opts := builder.BuildOptions{SourceDir: filepath.Dir(specPath)}
 	buildErr := withStdoutToStderr(func() error {
 		for _, p := range platforms {
-			if err := b.Build(ctx, imageSpec, p); err != nil {
+			if err := b.Build(ctx, imageSpec, p, opts); err != nil {
 				return err
 			}
 		}
@@ -179,8 +181,9 @@ func handlePublishImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 			if err != nil {
 				return err
 			}
+			buildOpts := builder.BuildOptions{SourceDir: filepath.Dir(specPath)}
 			for _, p := range platforms {
-				if err := b.Build(ctx, imageSpec, p); err != nil {
+				if err := b.Build(ctx, imageSpec, p, buildOpts); err != nil {
 					return fmt.Errorf("build: %w", err)
 				}
 			}

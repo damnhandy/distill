@@ -25,7 +25,7 @@ func aptSpec(t *testing.T, packages []string, variant string, accounts *spec.Acc
 
 func TestAPTDockerfile_Structure(t *testing.T) {
 	s := aptSpec(t, []string{"libc6"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "FROM debian:bookworm-slim AS builder")
 	assert.Contains(t, df, "FROM scratch")
@@ -34,7 +34,7 @@ func TestAPTDockerfile_Structure(t *testing.T) {
 
 func TestAPTDockerfile_PackageList(t *testing.T) {
 	s := aptSpec(t, []string{"libc6", "ca-certificates", "tzdata"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "debootstrap")
 	assert.Contains(t, df, "--variant=minbase")
@@ -46,7 +46,7 @@ func TestAPTDockerfile_PackageList(t *testing.T) {
 
 func TestAPTDockerfile_PackagesJoined(t *testing.T) {
 	s := aptSpec(t, []string{"libc6", "ca-certificates"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	// debootstrap --include takes a comma-separated list, not separate args.
 	assert.Contains(t, df, "--include=libc6,ca-certificates")
@@ -66,7 +66,7 @@ func TestAPTDockerfile_RuntimeVariant(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := aptSpec(t, []string{"libc6"}, tc.variant, nil)
-			df := aptDockerfile(s)
+			df := aptDockerfile(s, "linux/amd64")
 
 			if tc.wantRemoved {
 				assert.Contains(t, df, "dpkg --purge")
@@ -90,7 +90,7 @@ func TestAPTDockerfile_Accounts(t *testing.T) {
 		},
 	}
 	s := aptSpec(t, []string{"libc6"}, "", accounts)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "chroot /chroot groupadd --gid 10001 appuser")
 	assert.Contains(t, df, "chroot /chroot useradd --uid 10001 --gid 10001")
@@ -104,7 +104,7 @@ func TestAPTDockerfile_AccountsDefaultShell(t *testing.T) {
 		},
 	}
 	s := aptSpec(t, []string{"libc6"}, "", accounts)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	// Debian default is /usr/sbin/nologin (not /sbin/nologin like DNF).
 	assert.Contains(t, df, "/usr/sbin/nologin")
@@ -117,7 +117,7 @@ func TestAPTDockerfile_AccountsExplicitShell(t *testing.T) {
 		},
 	}
 	s := aptSpec(t, []string{"libc6"}, "", accounts)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "/bin/sh")
 }
@@ -129,14 +129,14 @@ func TestAPTDockerfile_AccountsAdditionalGroups(t *testing.T) {
 		},
 	}
 	s := aptSpec(t, []string{"libc6"}, "", accounts)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "-G audio,video")
 }
 
 func TestAPTDockerfile_NoAccounts(t *testing.T) {
 	s := aptSpec(t, []string{"libc6"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.NotContains(t, df, "groupadd")
 	assert.NotContains(t, df, "useradd")
@@ -144,7 +144,7 @@ func TestAPTDockerfile_NoAccounts(t *testing.T) {
 
 func TestAPTDockerfile_CacheCleanup(t *testing.T) {
 	s := aptSpec(t, []string{"libc6"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "/chroot/var/cache/apt/archives/*.deb")
 	assert.Contains(t, df, "/chroot/var/lib/apt/lists/*")
@@ -152,7 +152,7 @@ func TestAPTDockerfile_CacheCleanup(t *testing.T) {
 
 func TestAPTDockerfile_DebootstrapInstall(t *testing.T) {
 	s := aptSpec(t, []string{"libc6"}, "", nil)
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "apt-get update")
 	assert.Contains(t, df, "apt-get install -y")
@@ -174,7 +174,7 @@ func TestAPTDockerfile_ScratchStageMetadata(t *testing.T) {
 			Users: []spec.UserSpec{{Name: "app", UID: 1000, GID: 1000}},
 		},
 	}
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, `CMD ["/bin/sh"]`)
 	assert.Contains(t, df, "USER 1000:1000")
@@ -186,7 +186,7 @@ func TestAPTDockerfile_Paths(t *testing.T) {
 	s.Paths = []spec.PathSpec{
 		{Type: "directory", Path: "/data", UID: 1000, GID: 1000, Mode: "0700"},
 	}
-	df := aptDockerfile(s)
+	df := aptDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "mkdir -p /chroot/data")
 	assert.Contains(t, df, "chown 1000:1000 /chroot/data")

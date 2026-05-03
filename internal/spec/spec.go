@@ -116,7 +116,87 @@ type ContentsSpec struct {
 	// Packages is the explicit list of packages to install.
 	// Only these packages and their hard dependencies will be present.
 	Packages []string `yaml:"packages"`
-	// future: Repositories, Keyring for custom package sources
+
+	// Repositories lists additional package repositories beyond the base
+	// distribution's defaults. These are configured before package installation.
+	Repositories []RepositorySpec `yaml:"repositories,omitempty"`
+
+	// Artifacts lists files to fetch from HTTP URLs or copy from the local
+	// filesystem into the image after package installation.
+	Artifacts []ArtifactSpec `yaml:"artifacts,omitempty"`
+}
+
+// RepositorySpec defines an additional package repository to configure
+// during the build. For DNF targets it becomes a .repo file; for APT
+// targets it becomes an entry in sources.list.d.
+type RepositorySpec struct {
+	// Name is the repository identifier, used as the .repo file stem (DNF)
+	// or sources.list.d filename (APT). Required.
+	Name string `yaml:"name"`
+
+	// URL is the base repository URL. Required.
+	// DNF: baseurl value (e.g. https://rpm.releases.hashicorp.com/RHEL/$releasever/$basearch/stable)
+	// APT: archive URL (e.g. https://apt.releases.hashicorp.com)
+	URL string `yaml:"url"`
+
+	// GPGKey is the URL or file path to the repository's GPG public key.
+	// When set, the key is imported and gpgcheck is enabled.
+	GPGKey string `yaml:"gpg-key,omitempty"`
+
+	// Suite is the APT distribution suite (e.g. "noble", "stable").
+	// Only used for APT targets.
+	Suite string `yaml:"suite,omitempty"`
+
+	// Components lists the APT repository components (e.g. ["main"]).
+	// Defaults to ["main"] when empty. Only used for APT targets.
+	Components []string `yaml:"components,omitempty"`
+
+	// Arch lists the APT architectures to enable (e.g. ["amd64", "arm64"]).
+	// When empty the builder infers from the spec's platforms list.
+	// Only used for APT targets.
+	Arch []string `yaml:"arch,omitempty"`
+}
+
+// ArtifactSpec declares a file to install into the image from an HTTP URL
+// or from the local filesystem. Artifacts are placed inside the chroot so
+// they appear in the final image.
+type ArtifactSpec struct {
+	// Type is the artifact source kind. Required. One of "http" or "local".
+	Type string `yaml:"type"`
+
+	// URL is the download URL. Required when Type is "http".
+	URL string `yaml:"url,omitempty"`
+
+	// Path is the source file path, relative to the spec file's directory.
+	// Required when Type is "local".
+	Path string `yaml:"path,omitempty"`
+
+	// SHA256 is the expected hex checksum of the downloaded file.
+	// When set, the build fails if the file does not match.
+	// Only used for Type "http".
+	SHA256 string `yaml:"sha256,omitempty"`
+
+	// Dest is the destination path inside the image. Required.
+	// For archives this is the extraction directory; for raw files it is
+	// the full destination file path.
+	Dest string `yaml:"dest"`
+
+	// Extract specifies the archive format to unpack after download.
+	// Supported: "tar.gz", "tar.bz2", "tar.xz", "zip".
+	// When empty the file is treated as a raw binary.
+	Extract string `yaml:"extract,omitempty"`
+
+	// Strip is the number of leading path components to strip when
+	// extracting a tar archive (equivalent to tar --strip-components).
+	Strip int `yaml:"strip,omitempty"`
+
+	// Mode is the octal permission string applied to the installed file
+	// (e.g. "0755"). Not applied to extracted archives.
+	Mode string `yaml:"mode,omitempty"`
+
+	// Platforms restricts this artifact to the listed build platforms
+	// (e.g. ["linux/amd64"]). When empty the artifact applies to all platforms.
+	Platforms []string `yaml:"platforms,omitempty"`
 }
 
 // SourceSpec identifies the source distribution for the chroot bootstrap.
@@ -296,6 +376,37 @@ func validate(s *ImageSpec) error {
 	}
 	if s.Destination != nil && s.Destination.Image == "" {
 		errs = append(errs, "destination.image is required when destination is set")
+	}
+	for i, r := range s.Contents.Repositories {
+		if r.Name == "" {
+			errs = append(errs, fmt.Sprintf("contents.repositories[%d].name is required", i))
+		}
+		if r.URL == "" {
+			errs = append(errs, fmt.Sprintf("contents.repositories[%d].url is required", i))
+		}
+	}
+	validExtract := map[string]bool{"tar.gz": true, "tar.bz2": true, "tar.xz": true, "zip": true}
+	for i, a := range s.Contents.Artifacts {
+		switch a.Type {
+		case "http":
+			if a.URL == "" {
+				errs = append(errs, fmt.Sprintf("contents.artifacts[%d].url is required for type http", i))
+			}
+		case "local":
+			if a.Path == "" {
+				errs = append(errs, fmt.Sprintf("contents.artifacts[%d].path is required for type local", i))
+			}
+		case "":
+			errs = append(errs, fmt.Sprintf("contents.artifacts[%d].type is required", i))
+		default:
+			errs = append(errs, fmt.Sprintf(`contents.artifacts[%d].type %q is invalid — must be "http" or "local"`, i, a.Type))
+		}
+		if a.Dest == "" {
+			errs = append(errs, fmt.Sprintf("contents.artifacts[%d].dest is required", i))
+		}
+		if a.Extract != "" && !validExtract[a.Extract] {
+			errs = append(errs, fmt.Sprintf(`contents.artifacts[%d].extract %q is invalid — must be one of: tar.gz, tar.bz2, tar.xz, zip`, i, a.Extract))
+		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("invalid image spec:\n  - %s", strings.Join(errs, "\n  - "))

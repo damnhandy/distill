@@ -20,7 +20,7 @@ type DNFBuilder struct{}
 // with the chroot copied in. Because the chroot lives on the container
 // runtime's own overlay filesystem throughout, RPM scriptlets and hardlinks
 // work correctly on all platforms without workarounds.
-func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string) error {
+func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string, opts BuildOptions) error {
 	cli := DetectCLI()
 
 	contextDir, err := os.MkdirTemp("", "distill-dnf-*")
@@ -33,8 +33,12 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		}
 	}()
 
+	if err := copyLocalArtifacts(s.Contents.Artifacts, platform, contextDir, opts.SourceDir); err != nil {
+		return fmt.Errorf("staging local artifacts: %w", err)
+	}
+
 	dockerfilePath := filepath.Join(contextDir, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(dnfDockerfile(s)), 0o600); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(dnfDockerfile(s, platform)), 0o600); err != nil {
 		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
@@ -55,7 +59,7 @@ func (b *DNFBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 }
 
 // dnfDockerfile generates the full multi-stage Dockerfile for a DNF-based image.
-func dnfDockerfile(s *spec.ImageSpec) string {
+func dnfDockerfile(s *spec.ImageSpec, platform string) string {
 	var b strings.Builder
 
 	// ── Builder stage ────────────────────────────────────────────────────────
@@ -71,6 +75,8 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("    && mkdir -p /chroot/etc/dnf \\\n")
 	b.WriteString("    && cp -r /etc/yum.repos.d /chroot/etc/ \\\n")
 	b.WriteString("    && { cp -r /etc/dnf/vars /chroot/etc/dnf/ 2>/dev/null || true; }\n")
+
+	b.WriteString(dnfRepositoryInstructions(s.Contents.Repositories))
 
 	b.WriteString("\n# Install packages into the chroot.\n")
 	b.WriteString("RUN dnf install -y -q \\\n")
@@ -120,6 +126,13 @@ func dnfDockerfile(s *spec.ImageSpec) string {
 	fmt.Fprintf(&b, "\nRUN dnf clean all --installroot /chroot --releasever %s\n", s.Source.Releasever)
 
 	b.WriteString(pathsInstructions(s))
+
+	if needsUnzip(s.Contents.Artifacts, platform) {
+		b.WriteString("\n# Install unzip in builder for zip artifact extraction.\n")
+		b.WriteString("RUN dnf install -y -q unzip\n")
+	}
+
+	b.WriteString(artifactInstructions(s.Contents.Artifacts, platform))
 
 	if s.IsRuntime() {
 		b.WriteString("\n# Remove the package manager for true immutability.\n")
