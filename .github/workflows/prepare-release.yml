@@ -1,0 +1,62 @@
+name: Prepare Release
+
+# Computes the Nix vendorHash for flake.nix, commits the update to main,
+# and pushes the release tag — which triggers the release workflow.
+#
+# Prerequisites:
+#   RELEASE_TOKEN secret — a PAT with `contents: write` and admin bypass for
+#   the main branch protection rule. Without it, the push to main will fail.
+#
+# Usage: Actions → Prepare Release → Run workflow → enter version (e.g. v0.4.0)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.4.0)'
+        required: true
+
+jobs:
+  prepare:
+    name: Update vendorHash and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # PAT is required to push to the protected main branch.
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - uses: DeterminateSystems/nix-installer-action@v16
+
+      - name: Compute vendorHash
+        id: vendor-hash
+        run: |
+          set -euo pipefail
+          # Temporarily reset to fakeHash so nix build outputs the real one.
+          sed -i -E 's|vendorHash = (pkgs\.lib\.fakeHash\|"[^"]*");|vendorHash = pkgs.lib.fakeHash;|' flake.nix
+          VENDOR_HASH=$(nix --extra-experimental-features "nix-command flakes" build 2>&1 \
+            | grep "got:" | sed 's/.*got:[[:space:]]*//')
+          if [[ -z "$VENDOR_HASH" ]]; then
+            echo "ERROR: could not extract vendorHash from nix build output" >&2
+            exit 1
+          fi
+          echo "hash=${VENDOR_HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Update flake.nix
+        run: |
+          sed -i "s|vendorHash = pkgs.lib.fakeHash;|vendorHash = \"${{ steps.vendor-hash.outputs.hash }}\";|" flake.nix
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          git diff --cached --quiet && echo "flake.nix unchanged, skipping commit" || \
+            git commit -m "chore: update flake.nix vendorHash for ${{ inputs.version }}"
+          git tag -a "${{ inputs.version }}" -m "Release ${{ inputs.version }}"
+          git push origin main
+          git push origin "${{ inputs.version }}"
