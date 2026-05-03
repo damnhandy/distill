@@ -27,8 +27,7 @@
             inherit version;
             src = ./.;
 
-            # Run `nix build` with vendorHash = pkgs.lib.fakeHash to compute this.
-            vendorHash = pkgs.lib.fakeHash;
+            vendorHash = "sha256-K9b+y6x6Dqo/wxOzw9i1noGKu+ktaaJWkjJ70hZIY9M=";
 
             ldflags = [
               "-s"
