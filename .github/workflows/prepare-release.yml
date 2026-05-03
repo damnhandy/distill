@@ -24,9 +24,17 @@ jobs:
       contents: write
 
     steps:
+      - name: Assert dispatched from main
+        run: |
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "ERROR: This workflow must be dispatched from main (got ${{ github.ref }})" >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: main
           # PAT is required to push to the protected main branch.
           token: ${{ secrets.RELEASE_TOKEN }}
 
@@ -36,12 +44,16 @@ jobs:
         id: vendor-hash
         run: |
           set -euo pipefail
-          # Temporarily reset to fakeHash so nix build outputs the real one.
-          sed -i -E 's|vendorHash = (pkgs\.lib\.fakeHash\|"[^"]*");|vendorHash = pkgs.lib.fakeHash;|' flake.nix
-          VENDOR_HASH=$(nix --extra-experimental-features "nix-command flakes" build 2>&1 \
-            | grep "got:" | sed 's/.*got:[[:space:]]*//')
+          # Reset to fakeHash so nix build outputs the real one regardless of current value.
+          # Use # as delimiter to avoid conflict with | used for ERE alternation.
+          sed -i -E 's#vendorHash = (pkgs\.lib\.fakeHash|"[^"]*");#vendorHash = pkgs.lib.fakeHash;#' flake.nix
+          # nix build exits non-zero on a hash mismatch (expected). Capture output before
+          # checking the result so pipefail does not abort before grep can extract the hash.
+          NIX_OUTPUT=$(nix --extra-experimental-features "nix-command flakes" build 2>&1 || true)
+          VENDOR_HASH=$(echo "$NIX_OUTPUT" | grep "got:" | sed 's/.*got:[[:space:]]*//')
           if [[ -z "$VENDOR_HASH" ]]; then
             echo "ERROR: could not extract vendorHash from nix build output" >&2
+            echo "$NIX_OUTPUT" >&2
             exit 1
           fi
           echo "hash=${VENDOR_HASH}" >> "$GITHUB_OUTPUT"
