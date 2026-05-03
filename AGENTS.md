@@ -93,10 +93,12 @@ integration` and do not run them in `go test ./...` by default.
 The following are fully unit-testable and must have tests:
 
 - `spec.Parse` — all valid inputs, all validation error paths
-- `spec.inferPackageManager` — all known prefixes and the default fallback
-- `spec.ImageSpec.IsImmutable` — nil pointer case and both explicit values
-- `dnfBootstrapScript` — package list, accounts, immutable flag on/off
-- `aptBootstrapScript` — package list, accounts, immutable flag on/off
+- `spec.InferPackageManager` — all known prefixes and the default fallback
+- `spec.ImageSpec.IsRuntime` — explicit values and the empty-Variant default
+- `dnfBootstrapScript` — package list, accounts, repositories, artifacts, runtime flag on/off
+- `aptBootstrapScript` — package list, accounts, repositories, artifacts, runtime flag on/off
+- Validation of `contents.repositories` — name regex, required fields, APT `suite` requirement
+- Validation of `contents.artifacts` — required fields per type, `extract` value set
 
 ## Code formatting
 
