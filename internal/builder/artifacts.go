@@ -68,7 +68,8 @@ func writeHTTPArtifact(b *strings.Builder, a spec.ArtifactSpec, i int) {
 	if a.Extract == "" {
 		// Raw binary download.
 		b.WriteString("RUN ")
-		fmt.Fprintf(b, "curl -fsSL %s -o %s", a.URL, chrootDest)
+		fmt.Fprintf(b, "mkdir -p $(dirname %s)", chrootDest)
+		fmt.Fprintf(b, " \\\n    && curl -fsSL %s -o %s", a.URL, chrootDest)
 		if a.SHA256 != "" {
 			fmt.Fprintf(b, " \\\n    && echo \"%s  %s\" | sha256sum -c -", a.SHA256, chrootDest)
 		}

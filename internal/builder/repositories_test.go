@@ -1,12 +1,33 @@
 package builder
 
 import (
+	"encoding/base64"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/damnhandy/distill/internal/spec"
 )
+
+// decodeBase64Content finds all base64-encoded blobs (printf '%s' '...' | base64 -d)
+// in the generated Dockerfile fragment and returns their decoded concatenation.
+// This lets tests assert on the actual file content rather than the opaque encoding.
+func decodeBase64Content(t *testing.T, out string) string {
+	t.Helper()
+	re := regexp.MustCompile(`printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d`)
+	matches := re.FindAllStringSubmatch(out, -1)
+	require.NotEmpty(t, matches, "no base64-encoded content found in output")
+	var sb strings.Builder
+	for _, m := range matches {
+		decoded, err := base64.StdEncoding.DecodeString(m[1])
+		require.NoError(t, err)
+		sb.Write(decoded)
+	}
+	return sb.String()
+}
 
 func TestDNFRepositoryInstructions_Empty(t *testing.T) {
 	assert.Empty(t, dnfRepositoryInstructions(nil))
@@ -18,10 +39,11 @@ func TestDNFRepositoryInstructions_NoGPGKey(t *testing.T) {
 		{Name: "myrepo", URL: "https://example.com/repo/$releasever/$basearch"},
 	}
 	out := dnfRepositoryInstructions(repos)
+	content := decodeBase64Content(t, out)
 
-	assert.Contains(t, out, "[myrepo]")
-	assert.Contains(t, out, "baseurl=https://example.com/repo/$releasever/$basearch")
-	assert.Contains(t, out, "gpgcheck=0")
+	assert.Contains(t, content, "[myrepo]")
+	assert.Contains(t, content, "baseurl=https://example.com/repo/$releasever/$basearch")
+	assert.Contains(t, content, "gpgcheck=0")
 	assert.Contains(t, out, "/chroot/etc/yum.repos.d/myrepo.repo")
 	assert.NotContains(t, out, "rpm --root /chroot --import")
 }
@@ -35,10 +57,11 @@ func TestDNFRepositoryInstructions_WithGPGKey(t *testing.T) {
 		},
 	}
 	out := dnfRepositoryInstructions(repos)
+	content := decodeBase64Content(t, out)
 
-	assert.Contains(t, out, "[hashicorp]")
-	assert.Contains(t, out, "gpgcheck=1")
-	assert.Contains(t, out, "gpgkey=https://rpm.releases.hashicorp.com/gpg")
+	assert.Contains(t, content, "[hashicorp]")
+	assert.Contains(t, content, "gpgcheck=1")
+	assert.Contains(t, content, "gpgkey=https://rpm.releases.hashicorp.com/gpg")
 	assert.Contains(t, out, "rpm --root /chroot --import https://rpm.releases.hashicorp.com/gpg")
 }
 
@@ -68,10 +91,11 @@ func TestAPTRepositoryInstructions_Basic(t *testing.T) {
 	}
 	packages := []string{"terraform"}
 	out := aptRepositoryInstructions(repos, packages, []string{"linux/amd64"})
+	content := decodeBase64Content(t, out)
 
 	assert.Contains(t, out, "/chroot/etc/apt/sources.list.d/hashicorp.list")
-	assert.Contains(t, out, "https://apt.releases.hashicorp.com")
-	assert.Contains(t, out, "noble")
+	assert.Contains(t, content, "https://apt.releases.hashicorp.com")
+	assert.Contains(t, content, "noble")
 	assert.Contains(t, out, "chroot /chroot apt-get update")
 	assert.Contains(t, out, "chroot /chroot apt-get install")
 	assert.Contains(t, out, "terraform")
@@ -87,10 +111,11 @@ func TestAPTRepositoryInstructions_WithGPGKey(t *testing.T) {
 		},
 	}
 	out := aptRepositoryInstructions(repos, []string{"curl"}, []string{"linux/amd64"})
+	content := decodeBase64Content(t, out)
 
 	assert.Contains(t, out, "curl -fsSL https://apt.releases.hashicorp.com/gpg")
 	assert.Contains(t, out, "/chroot/etc/apt/trusted.gpg.d/hashicorp.gpg")
-	assert.Contains(t, out, "signed-by=/etc/apt/trusted.gpg.d/hashicorp.gpg")
+	assert.Contains(t, content, "signed-by=/etc/apt/trusted.gpg.d/hashicorp.gpg")
 }
 
 func TestAPTRepositoryInstructions_DefaultComponents(t *testing.T) {
@@ -98,8 +123,9 @@ func TestAPTRepositoryInstructions_DefaultComponents(t *testing.T) {
 		{Name: "myrepo", URL: "https://example.com", Suite: "stable"},
 	}
 	out := aptRepositoryInstructions(repos, []string{"mypkg"}, []string{"linux/amd64"})
+	content := decodeBase64Content(t, out)
 
-	assert.Contains(t, out, "main")
+	assert.Contains(t, content, "main")
 }
 
 func TestAPTRepositoryInstructions_ExplicitComponents(t *testing.T) {
@@ -107,8 +133,9 @@ func TestAPTRepositoryInstructions_ExplicitComponents(t *testing.T) {
 		{Name: "myrepo", URL: "https://example.com", Suite: "stable", Components: []string{"contrib", "non-free"}},
 	}
 	out := aptRepositoryInstructions(repos, []string{"mypkg"}, []string{"linux/amd64"})
+	content := decodeBase64Content(t, out)
 
-	assert.Contains(t, out, "contrib non-free")
+	assert.Contains(t, content, "contrib non-free")
 }
 
 func TestDNFDockerfile_WithRepositories(t *testing.T) {

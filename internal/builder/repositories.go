@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -23,13 +24,19 @@ func dnfRepositoryInstructions(repos []spec.RepositorySpec) string {
 		gpgkeyLine := ""
 		if r.GPGKey != "" {
 			gpgcheck = "1"
-			gpgkeyLine = fmt.Sprintf("gpgkey=%s\n", r.GPGKey)
+			gpgkeyLine = "gpgkey=" + r.GPGKey + "\n"
 		}
-		repoContent := fmt.Sprintf("[%s]\\nname=%s\\nbaseurl=%s\\nenabled=1\\ngpgcheck=%s\\n%s",
+		// Build the .repo file content with actual newlines, then base64-encode
+		// it for safe embedding. Using printf with the content as the format
+		// string risks misinterpretation of % characters in URLs; embedding
+		// literal newlines would split the Dockerfile RUN instruction.
+		repoContent := fmt.Sprintf("[%s]\nname=%s\nbaseurl=%s\nenabled=1\ngpgcheck=%s\n%s",
 			r.Name, r.Name, r.URL, gpgcheck, gpgkeyLine)
+		encoded := base64.StdEncoding.EncodeToString([]byte(repoContent))
 		repoFile := fmt.Sprintf("/chroot/etc/yum.repos.d/%s.repo", r.Name)
+
 		b.WriteString("RUN ")
-		fmt.Fprintf(&b, "printf '%s' > %s", repoContent, repoFile)
+		fmt.Fprintf(&b, "printf '%%s' '%s' | base64 -d > %s", encoded, repoFile)
 		if r.GPGKey != "" {
 			fmt.Fprintf(&b, " \\\n    && rpm --root /chroot --import %s", r.GPGKey)
 		}
@@ -98,12 +105,16 @@ func aptRepositoryInstructions(repos []spec.RepositorySpec, packages []string, p
 			sourceLine = fmt.Sprintf("deb %s %s %s", r.URL, r.Suite, strings.Join(components, " "))
 		}
 
+		// Base64-encode the sources.list line for the same reason as repo files:
+		// URLs can contain % and the line itself could contain characters that
+		// are unsafe as a printf format string.
+		encoded := base64.StdEncoding.EncodeToString([]byte(sourceLine + "\n"))
 		sourcesFile := fmt.Sprintf("/chroot/etc/apt/sources.list.d/%s.list", r.Name)
 		if !first {
 			b.WriteString(" \\\n    && ")
 		}
-		fmt.Fprintf(&b, "printf '%s\\n' > %s", sourceLine, sourcesFile)
-		first = false
+		fmt.Fprintf(&b, "printf '%%s' '%s' | base64 -d > %s", encoded, sourcesFile)
+		_ = first // suppress unused-after-assignment; kept for readability with the GPG branch
 
 		b.WriteString("\n")
 	}

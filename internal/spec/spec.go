@@ -3,6 +3,7 @@ package spec
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -357,6 +358,11 @@ func normalizePipeline(s *ImageSpec) {
 	}
 }
 
+// repoNameRe allows letters, digits, hyphens, underscores, and dots — safe
+// for use as a .repo filename stem or sources.list.d basename without path
+// traversal risk.
+var repoNameRe = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
 func validate(s *ImageSpec) error {
 	var errs []string
 	if s.Name == "" {
@@ -380,9 +386,14 @@ func validate(s *ImageSpec) error {
 	for i, r := range s.Contents.Repositories {
 		if r.Name == "" {
 			errs = append(errs, fmt.Sprintf("contents.repositories[%d].name is required", i))
+		} else if !repoNameRe.MatchString(r.Name) {
+			errs = append(errs, fmt.Sprintf("contents.repositories[%d].name %q must contain only letters, digits, hyphens, underscores, or dots", i, r.Name))
 		}
 		if r.URL == "" {
 			errs = append(errs, fmt.Sprintf("contents.repositories[%d].url is required", i))
+		}
+		if r.Suite == "" && (s.Source.PackageManager == "apt" || InferPackageManager(s.Source.Image) == "apt") {
+			errs = append(errs, fmt.Sprintf("contents.repositories[%d].suite is required for APT repositories", i))
 		}
 	}
 	validExtract := map[string]bool{"tar.gz": true, "tar.bz2": true, "tar.xz": true, "zip": true}
@@ -395,6 +406,12 @@ func validate(s *ImageSpec) error {
 		case "local":
 			if a.Path == "" {
 				errs = append(errs, fmt.Sprintf("contents.artifacts[%d].path is required for type local", i))
+			}
+			if a.Extract != "" {
+				errs = append(errs, fmt.Sprintf("contents.artifacts[%d].extract is not supported for type local", i))
+			}
+			if a.Strip != 0 {
+				errs = append(errs, fmt.Sprintf("contents.artifacts[%d].strip is not supported for type local", i))
 			}
 		case "":
 			errs = append(errs, fmt.Sprintf("contents.artifacts[%d].type is required", i))
