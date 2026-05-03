@@ -73,8 +73,25 @@ func aptDockerfile(s *spec.ImageSpec, platform string) string {
 	// as tzdata hang indefinitely waiting for timezone input on Ubuntu images.
 	b.WriteString("ENV DEBIAN_FRONTEND=noninteractive\n")
 
+	// For Ubuntu builder stages, switch to the Azure mirror before updating.
+	// azure.archive.ubuntu.com is geo-distributed across Azure regions, has no
+	// egress cost on Azure-hosted runners, and is significantly faster than the
+	// default UK-based archive.ubuntu.com pool. The sed targets both the DEB822
+	// format used by Ubuntu 24.04+ and the classic sources.list format.
+	if strings.Contains(s.Source.Image, "ubuntu") {
+		b.WriteString("\n# Switch to the Azure Ubuntu mirror for faster resolution on Azure runners.\n")
+		b.WriteString("RUN sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' \\\n")
+		b.WriteString("        /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null; \\\n")
+		b.WriteString("    sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' \\\n")
+		b.WriteString("        /etc/apt/sources.list 2>/dev/null; true\n")
+	}
+
 	b.WriteString("\n# Install debootstrap if not present in the base image.\n")
-	b.WriteString("RUN apt-get update -qq \\\n")
+	// Retry apt-get update up to three times with a 15-second back-off to
+	// handle transient mirror failures (connection timeouts from CI runners).
+	b.WriteString("RUN (apt-get update -qq \\\n")
+	b.WriteString("    || (sleep 15 && apt-get update -qq) \\\n")
+	b.WriteString("    || (sleep 30 && apt-get update -qq)) \\\n")
 	b.WriteString("    && apt-get install -y -qq debootstrap curl gpg\n")
 
 	hasRepos := len(s.Contents.Repositories) > 0
@@ -189,12 +206,14 @@ func aptDockerfile(s *spec.ImageSpec, platform string) string {
 	return b.String()
 }
 
-// aptMirror returns the canonical package archive URL for the given base image.
-// debootstrap requires an explicit mirror when the host and target distro differ,
-// and Ubuntu requires its own archive even when the host is Ubuntu.
+// aptMirror returns the package archive URL passed to debootstrap.
+// For Ubuntu we use azure.archive.ubuntu.com, which is geo-distributed across
+// Azure regions, has no egress cost for Azure-hosted runners (including GitHub
+// Actions), and resolves faster than the default UK-based archive.ubuntu.com.
+// Debian uses deb.debian.org, which is already a CDN-backed mirror.
 func aptMirror(image string) string {
 	if strings.Contains(image, "ubuntu") {
-		return "http://archive.ubuntu.com/ubuntu"
+		return "http://azure.archive.ubuntu.com/ubuntu"
 	}
 	return "http://deb.debian.org/debian"
 }
