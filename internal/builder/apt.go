@@ -18,7 +18,7 @@ type APTBuilder struct{}
 // container CLI. The builder stage runs debootstrap inside the base image
 // to populate /chroot; the final stage is FROM scratch with the chroot
 // copied in.
-func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string) error {
+func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform string, opts BuildOptions) error {
 	cli := DetectCLI()
 
 	contextDir, err := os.MkdirTemp("", "distill-apt-*")
@@ -31,8 +31,12 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		}
 	}()
 
+	if err := copyLocalArtifacts(s.Contents.Artifacts, platform, contextDir, opts.SourceDir); err != nil {
+		return fmt.Errorf("staging local artifacts: %w", err)
+	}
+
 	dockerfilePath := filepath.Join(contextDir, "Dockerfile")
-	if err := os.WriteFile(dockerfilePath, []byte(aptDockerfile(s)), 0o600); err != nil {
+	if err := os.WriteFile(dockerfilePath, []byte(aptDockerfile(s, platform)), 0o600); err != nil {
 		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
@@ -53,7 +57,12 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 }
 
 // aptDockerfile generates the full multi-stage Dockerfile for an APT-based image.
-func aptDockerfile(s *spec.ImageSpec) string {
+// When custom repositories are configured it uses a two-phase bootstrap:
+// debootstrap --variant=minbase (no packages) followed by chroot apt-get install,
+// so that packages from both standard and custom repos can be installed together.
+// Without custom repositories the existing single-phase debootstrap --include path
+// is preserved.
+func aptDockerfile(s *spec.ImageSpec, platform string) string {
 	var b strings.Builder
 
 	// ── Builder stage ────────────────────────────────────────────────────────
@@ -64,19 +73,45 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	// as tzdata hang indefinitely waiting for timezone input on Ubuntu images.
 	b.WriteString("ENV DEBIAN_FRONTEND=noninteractive\n")
 
-	b.WriteString("\n# Install debootstrap if not present in the base image.\n")
-	b.WriteString("RUN apt-get update -qq \\\n")
-	b.WriteString("    && apt-get install -y -qq debootstrap\n")
+	// For Ubuntu builder stages, switch to the Azure mirror before updating.
+	// azure.archive.ubuntu.com is geo-distributed across Azure regions, has no
+	// egress cost on Azure-hosted runners, and is significantly faster than the
+	// default UK-based archive.ubuntu.com pool. The sed targets both the DEB822
+	// format used by Ubuntu 24.04+ and the classic sources.list format.
+	if strings.Contains(s.Source.Image, "ubuntu") {
+		b.WriteString("\n# Switch to the Azure Ubuntu mirror for faster resolution on Azure runners.\n")
+		b.WriteString("RUN sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' \\\n")
+		b.WriteString("        /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null; \\\n")
+		b.WriteString("    sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' \\\n")
+		b.WriteString("        /etc/apt/sources.list 2>/dev/null; true\n")
+	}
 
-	// Ubuntu's Essential package set includes init-system-helpers, which calls
-	// invoke-rc.d in its postinst and hangs inside a Docker build chroot without
-	// a policy-rc.d guard. We use --foreign to split debootstrap into two stages
-	// so we can inject policy-rc.d before the configure scripts run. This is also
-	// the correct approach for Debian, so we apply it uniformly.
-	b.WriteString("\n# Stage 1: download and unpack packages only (no postinst scripts yet).\n")
-	fmt.Fprintf(&b, "RUN debootstrap --foreign --variant=minbase --include=%s \\\n",
-		strings.Join(s.Contents.Packages, ","))
-	fmt.Fprintf(&b, "    %s /chroot %s\n", s.Source.Releasever, aptMirror(s.Source.Image))
+	b.WriteString("\n# Install debootstrap if not present in the base image.\n")
+	// Retry apt-get update up to three times with a 15-second back-off to
+	// handle transient mirror failures (connection timeouts from CI runners).
+	b.WriteString("RUN (apt-get update -qq \\\n")
+	b.WriteString("    || (sleep 15 && apt-get update -qq) \\\n")
+	b.WriteString("    || (sleep 30 && apt-get update -qq)) \\\n")
+	b.WriteString("    && apt-get install -y -qq debootstrap curl gpg\n")
+
+	hasRepos := len(s.Contents.Repositories) > 0
+
+	if hasRepos {
+		// Two-phase path: minimal bootstrap, then apt-get install with all repos.
+		// Ubuntu's Essential package set includes init-system-helpers, which calls
+		// invoke-rc.d in its postinst and hangs inside a Docker build chroot without
+		// a policy-rc.d guard. We use --foreign to split debootstrap into two stages
+		// so we can inject policy-rc.d before the configure scripts run.
+		b.WriteString("\n# Stage 1: minimal bootstrap only (no packages; custom repos added after).\n")
+		fmt.Fprintf(&b, "RUN debootstrap --foreign --variant=minbase \\\n")
+		fmt.Fprintf(&b, "    %s /chroot %s\n", s.Source.Releasever, aptMirror(s.Source.Image))
+	} else {
+		// Standard path: bootstrap with all packages in a single debootstrap run.
+		b.WriteString("\n# Stage 1: download and unpack packages only (no postinst scripts yet).\n")
+		fmt.Fprintf(&b, "RUN debootstrap --foreign --variant=minbase --include=%s \\\n",
+			strings.Join(s.Contents.Packages, ","))
+		fmt.Fprintf(&b, "    %s /chroot %s\n", s.Source.Releasever, aptMirror(s.Source.Image))
+	}
 
 	// Ubuntu's init-system-helpers postinst calls multiple service management
 	// tools that hang inside a Docker build chroot:
@@ -104,6 +139,11 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	b.WriteString("    /chroot/usr/bin/deb-systemd-helper \\\n")
 	b.WriteString("    /chroot/usr/bin/deb-systemd-invoke \\\n")
 	b.WriteString("    /chroot/usr/bin/systemctl\n")
+
+	if hasRepos {
+		// Add custom repo sources + keys then install all packages.
+		b.WriteString(aptRepositoryInstructions(s.Contents.Repositories, s.Contents.Packages, s.EffectivePlatforms()))
+	}
 
 	if s.Accounts != nil && (len(s.Accounts.Groups) > 0 || len(s.Accounts.Users) > 0) {
 		b.WriteString("\n# Create groups and users inside the chroot.\n")
@@ -143,6 +183,13 @@ func aptDockerfile(s *spec.ImageSpec) string {
 
 	b.WriteString(pathsInstructions(s))
 
+	if needsUnzip(s.Contents.Artifacts, platform) {
+		b.WriteString("\n# Install unzip in builder for zip artifact extraction.\n")
+		b.WriteString("RUN apt-get install -y -qq unzip\n")
+	}
+
+	b.WriteString(artifactInstructions(s.Contents.Artifacts, platform))
+
 	if s.IsRuntime() {
 		b.WriteString("\n# Remove apt and dpkg for true immutability.\n")
 		b.WriteString("RUN chroot /chroot dpkg --purge --force-depends apt apt-utils 2>/dev/null || true \\\n")
@@ -159,12 +206,14 @@ func aptDockerfile(s *spec.ImageSpec) string {
 	return b.String()
 }
 
-// aptMirror returns the canonical package archive URL for the given base image.
-// debootstrap requires an explicit mirror when the host and target distro differ,
-// and Ubuntu requires its own archive even when the host is Ubuntu.
+// aptMirror returns the package archive URL passed to debootstrap.
+// For Ubuntu we use azure.archive.ubuntu.com, which is geo-distributed across
+// Azure regions, has no egress cost for Azure-hosted runners (including GitHub
+// Actions), and resolves faster than the default UK-based archive.ubuntu.com.
+// Debian uses deb.debian.org, which is already a CDN-backed mirror.
 func aptMirror(image string) string {
 	if strings.Contains(image, "ubuntu") {
-		return "http://archive.ubuntu.com/ubuntu"
+		return "http://azure.archive.ubuntu.com/ubuntu"
 	}
 	return "http://deb.debian.org/debian"
 }

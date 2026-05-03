@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -34,10 +35,12 @@ func pathsInstructions(s *spec.ImageSpec) string {
 
 		case "file":
 			b.WriteString("RUN ")
-			// Write content via printf to avoid shell heredoc portability issues.
-			// Content is embedded as a single-quoted shell string with newlines escaped.
-			escaped := strings.ReplaceAll(p.Content, "'", "'\\''")
-			fmt.Fprintf(&b, "printf '%%s' '%s' > %s", escaped, chrootPath)
+			// Base64-encode the content so it survives Dockerfile parsing intact.
+			// Plain embedding would let newlines split the RUN instruction into
+			// separate lines, causing the Dockerfile parser to misread TOML section
+			// headers (e.g. [aws]) as unknown instructions.
+			encoded := base64.StdEncoding.EncodeToString([]byte(p.Content))
+			fmt.Fprintf(&b, "printf '%%s' '%s' | base64 -d > %s", encoded, chrootPath)
 			if p.UID != 0 || p.GID != 0 {
 				fmt.Fprintf(&b, " \\\n    && chown %d:%d %s", p.UID, p.GID, chrootPath)
 			}

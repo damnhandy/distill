@@ -36,10 +36,10 @@ jobs:
             spec: examples/rhel9-runtime/image.distill.yaml
             test: examples/rhel9-runtime/test.yaml
             tag: ghcr.io/damnhandy/rhel9-distilled:latest
-          - name: debian-runtime
-            spec: examples/debian-runtime/image.distill.yaml
-            test: examples/debian-runtime/test.yaml
-            tag: ghcr.io/damnhandy/debian-distilled:latest
+          - name: rhel9-aws-devtools
+            spec: examples/rhel9-aws-devtools/image.distill.yaml
+            test: examples/rhel9-aws-devtools/test.yaml
+            tag: ghcr.io/damnhandy/rhel9-aws-devtools:latest
           - name: centos-stream9-runtime
             spec: examples/centos-stream9-runtime/image.distill.yaml
             test: examples/centos-stream9-runtime/test.yaml

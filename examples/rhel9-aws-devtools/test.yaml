@@ -1,0 +1,41 @@
+schemaVersion: "2.0.0"
+commandTests:
+  - name: "aws cli binary is executable"
+    command: "/usr/local/aws-cli/aws/dist/aws"
+    args: ["--version"]
+    expectedOutput: ["aws-cli/2"]
+  - name: "aws symlink resolves"
+    command: "/usr/local/bin/aws"
+    args: ["--version"]
+    expectedOutput: ["aws-cli/2"]
+  - name: "starship is executable"
+    command: "/usr/local/bin/starship"
+    args: ["--version"]
+    expectedOutput: ["starship"]
+  - name: "no dnf in final image"
+    command: "sh"
+    args: ["-c", "command -v dnf 2>/dev/null || echo absent"]
+    expectedOutput: ["absent"]
+fileExistenceTests:
+  - name: "starship binary"
+    path: "/usr/local/bin/starship"
+    shouldExist: true
+  - name: "starship config"
+    path: "/etc/starship/starship.toml"
+    shouldExist: true
+  - name: "starship profile.d init"
+    path: "/etc/profile.d/starship.sh"
+    shouldExist: true
+  - name: "aws cli archive"
+    path: "/usr/local/aws-cli/aws/dist/aws"
+    shouldExist: true
+  - name: "aws symlink"
+    path: "/usr/local/bin/aws"
+    shouldExist: true
+metadataTest:
+  envVars:
+    - key: STARSHIP_CONFIG
+      value: /etc/starship/starship.toml
+    - key: LANG
+      value: en_US.UTF-8
+  user: "10001:10001"

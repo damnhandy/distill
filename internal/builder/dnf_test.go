@@ -25,7 +25,7 @@ func baseSpec(t *testing.T, packages []string, variant string, accounts *spec.Ac
 
 func TestDNFDockerfile_Structure(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "FROM registry.access.redhat.com/ubi9/ubi AS builder")
 	assert.Contains(t, df, "FROM scratch")
@@ -34,7 +34,7 @@ func TestDNFDockerfile_Structure(t *testing.T) {
 
 func TestDNFDockerfile_PackageList(t *testing.T) {
 	s := baseSpec(t, []string{"glibc", "ca-certificates", "tzdata"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "rpm --root /chroot --initdb")
 	assert.Contains(t, df, "dnf install -y -q")
@@ -46,7 +46,7 @@ func TestDNFDockerfile_PackageList(t *testing.T) {
 
 func TestDNFDockerfile_SinglePackage(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	// The last (and only) package must not have a trailing backslash.
 	assert.Contains(t, df, "    glibc\n")
@@ -55,7 +55,7 @@ func TestDNFDockerfile_SinglePackage(t *testing.T) {
 
 func TestDNFDockerfile_MultiplePackagesFormatting(t *testing.T) {
 	s := baseSpec(t, []string{"glibc", "ca-certificates"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	// All packages except the last get a continuation backslash.
 	assert.Contains(t, df, "    glibc \\\n")
@@ -77,7 +77,7 @@ func TestDNFDockerfile_RuntimeVariant(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := baseSpec(t, []string{"glibc"}, tc.variant, nil)
-			df := dnfDockerfile(s)
+			df := dnfDockerfile(s, "linux/amd64")
 
 			if tc.wantRemoved {
 				assert.Contains(t, df, "/chroot/usr/bin/dnf*")
@@ -100,7 +100,7 @@ func TestDNFDockerfile_Accounts(t *testing.T) {
 		},
 	}
 	s := baseSpec(t, []string{"glibc"}, "", accounts)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "groupadd -R /chroot --gid 10001 appuser")
 	assert.Contains(t, df, "useradd -R /chroot --uid 10001 --gid 10001")
@@ -115,7 +115,7 @@ func TestDNFDockerfile_AccountsDefaultShell(t *testing.T) {
 		},
 	}
 	s := baseSpec(t, []string{"glibc"}, "", accounts)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "/sbin/nologin")
 }
@@ -127,7 +127,7 @@ func TestDNFDockerfile_AccountsExplicitShell(t *testing.T) {
 		},
 	}
 	s := baseSpec(t, []string{"glibc"}, "", accounts)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "/bin/sh")
 }
@@ -139,14 +139,14 @@ func TestDNFDockerfile_AccountsAdditionalGroups(t *testing.T) {
 		},
 	}
 	s := baseSpec(t, []string{"glibc"}, "", accounts)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "-G audio,video")
 }
 
 func TestDNFDockerfile_NoAccounts(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.NotContains(t, df, "groupadd")
 	assert.NotContains(t, df, "useradd")
@@ -154,7 +154,7 @@ func TestDNFDockerfile_NoAccounts(t *testing.T) {
 
 func TestDNFDockerfile_Cleanup(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "dnf clean all --installroot /chroot")
 }
@@ -175,7 +175,7 @@ func TestDNFDockerfile_ScratchStageMetadata(t *testing.T) {
 			Users: []spec.UserSpec{{Name: "app", UID: 1000, GID: 1000}},
 		},
 	}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, `CMD ["/bin/bash"]`)
 	assert.Contains(t, df, "WORKDIR /app")
@@ -200,7 +200,7 @@ func TestDNFDockerfile_RunAs(t *testing.T) {
 			},
 		},
 	}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "USER 2000:2000")
 	assert.NotContains(t, df, "USER 1000:1000")
@@ -210,7 +210,7 @@ func TestDNFDockerfile_EntrypointAndCmd(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
 	s.Entrypoint = []string{"/docker-entrypoint.sh"}
 	s.Cmd = []string{"nginx", "-g", "daemon off;"}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, `ENTRYPOINT ["/docker-entrypoint.sh"]`)
 	assert.Contains(t, df, `CMD ["nginx", "-g", "daemon off;"]`)
@@ -220,7 +220,7 @@ func TestDNFDockerfile_VolumesAndPorts(t *testing.T) {
 	s := baseSpec(t, []string{"glibc"}, "", nil)
 	s.Volumes = []string{"/data", "/logs"}
 	s.Ports = []string{"8080/tcp", "9090/tcp"}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, `VOLUME "/data"`)
 	assert.Contains(t, df, `VOLUME "/logs"`)
@@ -233,7 +233,7 @@ func TestDNFDockerfile_Annotations(t *testing.T) {
 	s.Annotations = map[string]string{
 		"org.opencontainers.image.source": "https://github.com/example/repo",
 	}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, `LABEL org.opencontainers.image.title="test-image"`)
 	assert.Contains(t, df, `LABEL org.opencontainers.image.source="https://github.com/example/repo"`)
@@ -245,7 +245,7 @@ func TestDNFDockerfile_Paths(t *testing.T) {
 		{Type: "directory", Path: "/app/data", UID: 1000, GID: 1000, Mode: "0755"},
 		{Type: "symlink", Path: "/usr/local/bin/app", Source: "/opt/app/bin/app"},
 	}
-	df := dnfDockerfile(s)
+	df := dnfDockerfile(s, "linux/amd64")
 
 	assert.Contains(t, df, "mkdir -p /chroot/app/data")
 	assert.Contains(t, df, "chown 1000:1000 /chroot/app/data")

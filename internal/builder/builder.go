@@ -11,11 +11,19 @@ import (
 	"github.com/damnhandy/distill/internal/spec"
 )
 
+// BuildOptions carries per-invocation build settings that are not part of
+// the declarative ImageSpec (e.g. runtime-resolved paths).
+type BuildOptions struct {
+	// SourceDir is the directory containing the spec file. It is used to
+	// resolve relative paths declared in type: local artifacts.
+	SourceDir string
+}
+
 // Builder builds an OCI image from an ImageSpec.
 // Tags and platforms are read from the spec; platform is the single target
 // platform for this invocation (the caller iterates over EffectivePlatforms).
 type Builder interface {
-	Build(ctx context.Context, s *spec.ImageSpec, platform string) error
+	Build(ctx context.Context, s *spec.ImageSpec, platform string, opts BuildOptions) error
 }
 
 // New returns the Builder for the given package manager.
