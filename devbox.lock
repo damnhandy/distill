@@ -217,6 +217,54 @@
         }
       }
     },
+    "go-mod-upgrade@latest": {
+      "last_modified": "2026-04-23T13:07:47Z",
+      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#go-mod-upgrade",
+      "source": "devbox-search",
+      "version": "0.12.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/r696g7x5cb0swmf7vvxz08ksv8bbkr1r-go-mod-upgrade-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/r696g7x5cb0swmf7vvxz08ksv8bbkr1r-go-mod-upgrade-0.12.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ppj50vlcsc5ll343yb52pnyssfcj4bkr-go-mod-upgrade-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/ppj50vlcsc5ll343yb52pnyssfcj4bkr-go-mod-upgrade-0.12.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/5v799n5133vk822ymnjqr2kx6hgfjaj7-go-mod-upgrade-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/5v799n5133vk822ymnjqr2kx6hgfjaj7-go-mod-upgrade-0.12.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8bizsx5gsm2nx1w1ll2bizykl84fj8j6-go-mod-upgrade-0.12.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8bizsx5gsm2nx1w1ll2bizykl84fj8j6-go-mod-upgrade-0.12.0"
+        }
+      }
+    },
     "go@latest": {
       "last_modified": "2026-03-21T07:29:51Z",
       "resolved": "github:NixOS/nixpkgs/09061f748ee21f68a089cd5d91ec1859cd93d0be#go",
