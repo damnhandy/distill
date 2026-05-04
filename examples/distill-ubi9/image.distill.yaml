@@ -1,0 +1,88 @@
+# Minimal UBI9 image that packages the distill CLI.
+#
+# This spec dogfoods distill to build its own distribution image. The result
+# is the canonical RHEL9-based container for running distill in CI/CD pipelines.
+#
+# Runtime requirements:
+#   The distill binary itself requires a Docker or Podman daemon. When running
+#   this image in CI, either mount the host Docker socket or use a DinD sidecar:
+#
+#     docker run \
+#       -v /var/run/docker.sock:/var/run/docker.sock \
+#       -v $(pwd):/workspace -w /workspace \
+#       ghcr.io/damnhandy/distill-ubi9:latest \
+#       distill build --spec image.distill.yaml
+#
+# Version pinning:
+#   Update the artifact URLs and sha256 values below on each distill release.
+#   SHA256 checksums are in checksums.txt attached to each GitHub Release.
+
+name: distill-ubi9
+description: Minimal UBI9 image with the distill CLI for use in CI/CD pipelines
+
+variant: runtime
+
+platforms:
+  - linux/amd64
+  - linux/arm64
+
+source:
+  image: docker.io/redhat/ubi9
+  releasever: "9"
+
+destination:
+  image: ghcr.io/damnhandy/distill-ubi9
+  releasever: latest
+
+contents:
+  packages:
+    # distill is a static binary — glibc is not required.
+    # bash provides an interactive fallback shell (CMD below).
+    - bash
+    - ca-certificates
+
+  artifacts:
+    # The release archive also contains LICENSE and README.md, which will land
+    # in /usr/local/bin alongside the binary. This is harmless.
+    # Add sha256 values from checksums.txt in the release assets.
+    - type: http
+      url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_amd64.tar.gz
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/amd64]
+
+    - type: http
+      url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_arm64.tar.gz
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/arm64]
+
+accounts:
+  run-as: distill
+  users:
+    - name: distill
+      uid: 10001
+      gid: 10001
+      shell: /sbin/nologin
+  groups:
+    - name: distill
+      gid: 10001
+
+annotations:
+  org.opencontainers.image.title: distill
+  org.opencontainers.image.description: Minimal UBI9 image with the distill CLI
+  org.opencontainers.image.source: https://github.com/damnhandy/distill
+  org.opencontainers.image.version: v0.3.0
+  org.opencontainers.image.licenses: Apache-2.0
+
+cmd:
+  - /bin/bash
+
+pipeline:
+  scan:
+    enabled: true
+    fail-on: critical
+  sbom:
+    enabled: true
+  provenance:
+    enabled: true

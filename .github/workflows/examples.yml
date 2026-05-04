@@ -56,6 +56,14 @@ jobs:
             spec: examples/ubuntu-runtime/image.distill.yaml
             test: examples/ubuntu-runtime/test.yaml
             tag: ghcr.io/damnhandy/ubuntu-distilled:latest
+          - name: distill-ubi9
+            spec: examples/distill-ubi9/image.distill.yaml
+            test: examples/distill-ubi9/test.yaml
+            tag: ghcr.io/damnhandy/distill-ubi9:latest
+          - name: distill-ubuntu
+            spec: examples/distill-ubuntu/image.distill.yaml
+            test: examples/distill-ubuntu/test.yaml
+            tag: ghcr.io/damnhandy/distill-ubuntu:latest
 
     steps:
       - uses: actions/checkout@v6
