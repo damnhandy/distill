@@ -314,7 +314,7 @@ distill ships a GitHub Actions composite action that installs the CLI on the run
     version: v0.3.0
 ```
 
-After that step, call `distill build` or `distill publish` directly. GitHub Actions ubuntu-latest hosted runners have Docker pre-installed and support distill's `--privileged` chroot builds without extra configuration.
+After that step, call `distill build` or `distill publish` directly. GitHub Actions ubuntu-latest hosted runners have Docker pre-installed and support distill's `--privileged` chroot builds without extra configuration. Set `DISTILL_CONTAINER_CLI: docker` in any step that invokes distill — on Linux, distill defaults to Podman, which is not installed on hosted runners.
 
 For a full publish workflow with GHCR authentication and keyless SLSA provenance signing:
 
@@ -338,6 +338,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: distill publish --spec image.distill.yaml
+        env:
+          DISTILL_CONTAINER_CLI: docker
 ```
 
 See [docs/github-actions.md](./docs/github-actions.md) for more patterns, including matrix builds across multiple specs and GitLab CI guidance.

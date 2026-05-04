@@ -4,9 +4,11 @@ distill ships a composite action — `damnhandy/distill/.github/actions/setup-di
 
 ## Prerequisites
 
-distill builds images inside a privileged Docker container using a chroot strategy. GitHub Actions **ubuntu-latest** hosted runners have Docker pre-installed and support this without any extra configuration — no Docker-in-Docker setup needed.
+distill builds images by running a **privileged Docker container** that uses chroot to install packages. GitHub Actions `ubuntu-latest` hosted runners have Docker pre-installed and support `--privileged` without extra configuration.
 
-Required runner: `ubuntu-latest` (or any Linux runner with Docker available and `--privileged` support).
+Required runner: `ubuntu-latest` (or any Linux runner with Docker and `--privileged` support).
+
+> **Important:** On Linux, distill defaults to Podman. GitHub-hosted `ubuntu-latest` runners ship Docker, not Podman, so all workflow steps that invoke `distill build` or `distill publish` must set `DISTILL_CONTAINER_CLI: docker`.
 
 ## Basic usage
 
@@ -20,7 +22,7 @@ After this step, `distill` is on `PATH` and you can call any subcommand.
 
 ## Example: build only (no push)
 
-Useful for validating a spec on every pull request.
+Useful for validating a spec on every pull request. Passes `--platform linux/amd64` to skip the arm64 build (which requires QEMU) and keeps the job fast.
 
 ```yaml
 name: Build image
@@ -40,7 +42,20 @@ jobs:
           version: v0.3.0
 
       - name: Build image
-        run: distill build --spec examples/rhel9-runtime/image.distill.yaml
+        env:
+          DISTILL_CONTAINER_CLI: docker
+        run: distill build --spec image.distill.yaml --platform linux/amd64
+```
+
+To build both platforms on a PR, add QEMU first:
+
+```yaml
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (all platforms)
+        env:
+          DISTILL_CONTAINER_CLI: docker
+        run: distill build --spec image.distill.yaml
 ```
 
 ## Example: full publish workflow with GHCR and SLSA provenance
@@ -77,6 +92,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish image
+        env:
+          DISTILL_CONTAINER_CLI: docker
         run: distill publish --spec image.distill.yaml
 ```
 
@@ -121,6 +138,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish ${{ matrix.spec }}
+        env:
+          DISTILL_CONTAINER_CLI: docker
         run: distill publish --spec ${{ matrix.spec }}
 ```
 
@@ -161,7 +180,7 @@ build-image:
   tags:
     - privileged
   script:
-    - distill build --spec image.distill.yaml
+    - DISTILL_CONTAINER_CLI=docker distill build --spec image.distill.yaml
 ```
 
 > **Note:** GitLab.com SaaS runners do not support `--privileged` builds. You must bring your own runner with this capability enabled.
