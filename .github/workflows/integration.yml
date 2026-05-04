@@ -7,6 +7,32 @@ on:
     branches: [main]
 
 jobs:
+  # Verifies the composite action installs distill correctly and puts it on PATH.
+  # Uses a local path reference so we test the current action code, not @main.
+  setup-action-smoke:
+    name: Action Self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install distill via setup-distill action
+        id: setup
+        uses: ./.github/actions/setup-distill
+
+      - name: Verify version is reported
+        run: distill version
+
+      - name: "root --help lists core subcommands"
+        run: |
+          output=$(distill --help)
+          echo "$output"
+          echo "$output" | grep -q "build"
+          echo "$output" | grep -q "scan"
+          echo "$output" | grep -q "doctor"
+
+      - name: "doctor exits 0"
+        run: distill doctor
+
   cli-smoke:
     name: CLI Smoke Tests
     runs-on: ubuntu-latest
