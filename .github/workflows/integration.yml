@@ -18,6 +18,8 @@ jobs:
       - name: Install distill via setup-distill action
         id: setup
         uses: ./.github/actions/setup-distill
+        with:
+          version: v0.3.0
 
       - name: Verify version is reported
         run: distill version

@@ -150,8 +150,7 @@ variables:
 
 .distill-setup: &distill-setup
   before_script:
-    - curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh
-        | sh -s -- -b "$HOME/.local/bin" "$DISTILL_VERSION"
+    - curl -sfL https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh | sh -s -- -b "$HOME/.local/bin" "$DISTILL_VERSION"
     - export PATH="$HOME/.local/bin:$PATH"
 
 build-image:

@@ -24,13 +24,12 @@ runs:
       run: |
         set -euo pipefail
         INSTALL_DIR="$HOME/.local/bin"
+        INSTALL_SH="$GITHUB_ACTION_PATH/../../../scripts/install.sh"
         mkdir -p "$INSTALL_DIR"
         if [ "${{ inputs.version }}" = "latest" ]; then
-          curl -sfL "https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh" \
-            | sh -s -- -b "$INSTALL_DIR"
+          sh "$INSTALL_SH" -b "$INSTALL_DIR"
         else
-          curl -sfL "https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh" \
-            | sh -s -- -b "$INSTALL_DIR" "${{ inputs.version }}"
+          sh "$INSTALL_SH" -b "$INSTALL_DIR" "${{ inputs.version }}"
         fi
         echo "distill-version=$("$INSTALL_DIR/distill" version)" >> "$GITHUB_OUTPUT"
 

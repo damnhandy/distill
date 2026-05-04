@@ -44,15 +44,16 @@ contents:
   artifacts:
     # The release archive also contains LICENSE and README.md, which will land
     # in /usr/local/bin alongside the binary. This is harmless.
-    # Add sha256 values from checksums.txt in the release assets.
     - type: http
       url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_amd64.tar.gz
+      sha256: 605409765cfafe3dae239eefec6e08e51d0f3fa2294376a921f3d113940f3360
       dest: /usr/local/bin
       extract: tar.gz
       platforms: [linux/amd64]
 
     - type: http
       url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_arm64.tar.gz
+      sha256: 0af2698fbda614efbf751a7d7aca790a5d7742d9abc85f6da4ccb02367fd5d9a
       dest: /usr/local/bin
       extract: tar.gz
       platforms: [linux/arm64]
