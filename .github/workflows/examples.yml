@@ -63,8 +63,8 @@ jobs:
             tag: ghcr.io/damnhandy/ubuntu-distilled:latest
             scan-fail-on: critical
           # scan-fail-on: high — distill binary v0.3.0 was compiled with Go 1.26.0,
-          # which has CVE-2026-27143 (critical in stdlib). Threshold lowered until
-          # a new release is built with a patched Go version.
+          # which has CVE-2026-27143 (critical in stdlib). go.mod now requires
+          # Go 1.26.2 (the fix); revert to "critical" after the next release.
           - name: distill-ubi9
             spec: examples/distill-ubi9/image.distill.yaml
             test: examples/distill-ubi9/test.yaml
