@@ -1,0 +1,39 @@
+name: Setup Distill
+description: >
+  Install the distill CLI on the current runner and add it to PATH.
+  After this action, call distill commands directly in subsequent steps.
+
+inputs:
+  version:
+    description: >
+      Version to install, e.g. v0.3.0. Defaults to the latest release.
+    required: false
+    default: latest
+
+outputs:
+  distill-version:
+    description: Version string of the installed binary.
+    value: ${{ steps.install.outputs.distill-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install distill
+      id: install
+      shell: bash
+      run: |
+        set -euo pipefail
+        INSTALL_DIR="$HOME/.local/bin"
+        mkdir -p "$INSTALL_DIR"
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          curl -sfL "https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh" \
+            | sh -s -- -b "$INSTALL_DIR"
+        else
+          curl -sfL "https://raw.githubusercontent.com/damnhandy/distill/main/scripts/install.sh" \
+            | sh -s -- -b "$INSTALL_DIR" "${{ inputs.version }}"
+        fi
+        echo "distill-version=$("$INSTALL_DIR/distill" version)" >> "$GITHUB_OUTPUT"
+
+    - name: Add distill to PATH
+      shell: bash
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
