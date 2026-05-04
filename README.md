@@ -146,6 +146,18 @@ Download the `.deb` from the [latest release](https://github.com/damnhandy/disti
 sudo dpkg -i distill_<version>_linux_amd64.deb
 ```
 
+### GitHub Actions
+
+Use the composite action to install distill on a runner without manual download steps:
+
+```yaml
+- uses: damnhandy/distill/.github/actions/setup-distill@main
+  with:
+    version: v0.3.0
+```
+
+See [CI/CD integration](#cicd-integration) for full workflow examples.
+
 ## Requirements
 
 - macOS or Windows with Docker Desktop 3.0+, or Linux/WSL2 with Podman 3.0+
