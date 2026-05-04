@@ -1,0 +1,44 @@
+# container-structure-test configuration for distill-ubi9
+# Run with: devbox run test <image:tag> examples/distill-ubi9/test.yaml
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  user: "10001:10001"
+
+fileExistenceTests:
+  - name: "distill binary present"
+    path: /usr/local/bin/distill
+    shouldExist: true
+
+  - name: "ca-certificates present"
+    path: /etc/pki/tls/certs/ca-bundle.crt
+    shouldExist: true
+
+  - name: "no dnf binary"
+    path: /usr/bin/dnf
+    shouldExist: false
+
+  - name: "no yum binary"
+    path: /usr/bin/yum
+    shouldExist: false
+
+  - name: "distill home directory exists"
+    path: /home/distill
+    shouldExist: true
+
+commandTests:
+  - name: "distill version exits 0"
+    command: "/usr/local/bin/distill"
+    args: ["version"]
+    exitCode: 0
+
+  - name: "distill --help lists core subcommands"
+    command: "/usr/local/bin/distill"
+    args: ["--help"]
+    expectedOutput: ["build", "scan", "doctor"]
+
+  - name: "no package manager available"
+    command: "/bin/bash"
+    args: ["-c", "command -v dnf || command -v yum || echo NONE"]
+    expectedOutput: ["NONE"]

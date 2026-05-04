@@ -23,6 +23,13 @@ internal/
   spec/                 # ImageSpec YAML types, Parse(), validation
   builder/              # Builder interface, DNF/APT backends, OCI assembly
 examples/               # ready-to-use ImageSpec YAML files + structure tests
+docs/                   # user-facing guides (github-actions.md, etc.)
+.github/
+  actions/
+    setup-distill/      # composite action: installs distill CLI on a runner
+  workflows/            # CI, integration, release, CodeQL, examples, prepare-release
+scripts/
+  install.sh            # shell installer used by the composite action and users
 ```
 
 ## Build and run
@@ -218,6 +225,16 @@ Pinning is a SLSA security requirement: the build platform must be immutable and
 auditable. When upgrading, update the tag to the new release and verify the
 [slsa-github-generator release notes](https://github.com/slsa-framework/slsa-github-generator/releases)
 for any breaking changes to the `base64-subjects` input format.
+
+### setup-distill composite action
+
+The composite action lives at `.github/actions/setup-distill/action.yml`. It wraps `scripts/install.sh` — do not duplicate download or checksum logic in the action itself. The action:
+
+1. Installs to `$HOME/.local/bin` (no sudo, works on hosted and self-hosted runners).
+2. Adds that directory to `$GITHUB_PATH` so subsequent steps see `distill` on PATH.
+3. Outputs the installed version string as `distill-version`.
+
+When bumping the default version referenced in `docs/github-actions.md`, update the `version:` examples there and in the `README.md` CI/CD integration section to match the new release tag.
 
 ---
 

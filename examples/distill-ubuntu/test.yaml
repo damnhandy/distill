@@ -1,0 +1,48 @@
+# container-structure-test configuration for distill-ubuntu
+# Run with: devbox run test <image:tag> examples/distill-ubuntu/test.yaml
+
+schemaVersion: "2.0.0"
+
+metadataTest:
+  user: "10001:10001"
+
+fileExistenceTests:
+  - name: "distill binary present"
+    path: /usr/local/bin/distill
+    shouldExist: true
+
+  - name: "ca-certificates present"
+    path: /etc/ssl/certs/ca-certificates.crt
+    shouldExist: true
+
+  - name: "no apt binary"
+    path: /usr/bin/apt
+    shouldExist: false
+
+  - name: "no apt-get binary"
+    path: /usr/bin/apt-get
+    shouldExist: false
+
+  - name: "no dpkg binary"
+    path: /usr/bin/dpkg
+    shouldExist: false
+
+  - name: "distill home directory exists"
+    path: /home/distill
+    shouldExist: true
+
+commandTests:
+  - name: "distill version exits 0"
+    command: "/usr/local/bin/distill"
+    args: ["version"]
+    exitCode: 0
+
+  - name: "distill --help lists core subcommands"
+    command: "/usr/local/bin/distill"
+    args: ["--help"]
+    expectedOutput: ["build", "scan", "doctor"]
+
+  - name: "no package manager available"
+    command: "/bin/sh"
+    args: ["-c", "command -v apt-get || command -v dpkg || echo NONE"]
+    expectedOutput: ["NONE"]

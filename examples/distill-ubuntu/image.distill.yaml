@@ -1,0 +1,89 @@
+# Minimal Ubuntu 24.04 image that packages the distill CLI.
+#
+# This spec dogfoods distill to build its own distribution image. The result
+# is the canonical Debian-based container for running distill in CI/CD pipelines.
+#
+# Runtime requirements:
+#   The distill binary itself requires a Docker or Podman daemon. When running
+#   this image in CI, either mount the host Docker socket or use a DinD sidecar:
+#
+#     docker run \
+#       -v /var/run/docker.sock:/var/run/docker.sock \
+#       -v $(pwd):/workspace -w /workspace \
+#       ghcr.io/damnhandy/distill-ubuntu:latest \
+#       distill build --spec image.distill.yaml
+#
+# Version pinning:
+#   Update the artifact URLs and sha256 values below on each distill release.
+#   SHA256 checksums are in checksums.txt attached to each GitHub Release.
+
+name: distill-ubuntu
+description: Minimal Ubuntu 24.04 image with the distill CLI for use in CI/CD pipelines
+
+variant: runtime
+
+platforms:
+  - linux/amd64
+  - linux/arm64
+
+source:
+  image: ubuntu:24.04
+  releasever: noble
+
+destination:
+  image: ghcr.io/damnhandy/distill-ubuntu
+  releasever: latest
+
+contents:
+  packages:
+    # distill is a static binary — glibc is not required.
+    # bash provides an interactive fallback shell (CMD below).
+    - bash
+    - ca-certificates
+
+  artifacts:
+    # The release archive also contains LICENSE and README.md, which will land
+    # in /usr/local/bin alongside the binary. This is harmless.
+    - type: http
+      url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_amd64.tar.gz
+      sha256: 605409765cfafe3dae239eefec6e08e51d0f3fa2294376a921f3d113940f3360
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/amd64]
+
+    - type: http
+      url: https://github.com/damnhandy/distill/releases/download/v0.3.0/distill_linux_arm64.tar.gz
+      sha256: 0af2698fbda614efbf751a7d7aca790a5d7742d9abc85f6da4ccb02367fd5d9a
+      dest: /usr/local/bin
+      extract: tar.gz
+      platforms: [linux/arm64]
+
+accounts:
+  run-as: distill
+  users:
+    - name: distill
+      uid: 10001
+      gid: 10001
+      shell: /usr/sbin/nologin
+  groups:
+    - name: distill
+      gid: 10001
+
+annotations:
+  org.opencontainers.image.title: distill
+  org.opencontainers.image.description: Minimal Ubuntu 24.04 image with the distill CLI
+  org.opencontainers.image.source: https://github.com/damnhandy/distill
+  org.opencontainers.image.version: v0.3.0
+  org.opencontainers.image.licenses: Apache-2.0
+
+cmd:
+  - /bin/bash
+
+pipeline:
+  scan:
+    enabled: true
+    fail-on: critical
+  sbom:
+    enabled: true
+  provenance:
+    enabled: true

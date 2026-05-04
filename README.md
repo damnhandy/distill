@@ -146,6 +146,18 @@ Download the `.deb` from the [latest release](https://github.com/damnhandy/disti
 sudo dpkg -i distill_<version>_linux_amd64.deb
 ```
 
+### GitHub Actions
+
+Use the composite action to install distill on a runner without manual download steps:
+
+```yaml
+- uses: damnhandy/distill/.github/actions/setup-distill@main
+  with:
+    version: v0.3.0
+```
+
+See [CI/CD integration](#cicd-integration) for full workflow examples.
+
 ## Requirements
 
 - macOS or Windows with Docker Desktop 3.0+, or Linux/WSL2 with Podman 3.0+
@@ -291,6 +303,46 @@ distill mcp configure --tool copilot --scope user
 Tools exposed: `validate_spec`, `scaffold_spec`, `build_image`, `publish_image`, `scan_image`, `generate_sbom`, `check_dependencies`
 
 Resources: `distill://spec/schema` (JSON Schema for `.distill.yaml`), `distill://bases` (supported base distributions and their defaults)
+
+## CI/CD integration
+
+distill ships a GitHub Actions composite action that installs the CLI on the runner:
+
+```yaml
+- uses: damnhandy/distill/.github/actions/setup-distill@main
+  with:
+    version: v0.3.0
+```
+
+After that step, call `distill build` or `distill publish` directly. GitHub Actions ubuntu-latest hosted runners have Docker pre-installed and support distill's `--privileged` chroot builds without extra configuration. Set `DISTILL_CONTAINER_CLI: docker` in any step that invokes distill — on Linux, distill defaults to Podman, which is not installed on hosted runners.
+
+For a full publish workflow with GHCR authentication and keyless SLSA provenance signing:
+
+```yaml
+permissions:
+  contents: read
+  packages: write    # push to GHCR
+  id-token: write    # keyless cosign signing via GitHub OIDC
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: damnhandy/distill/.github/actions/setup-distill@main
+        with:
+          version: v0.3.0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: distill publish --spec image.distill.yaml
+        env:
+          DISTILL_CONTAINER_CLI: docker
+```
+
+See [docs/github-actions.md](./docs/github-actions.md) for more patterns, including matrix builds across multiple specs and GitLab CI guidance.
 
 ## Supply-chain security
 
