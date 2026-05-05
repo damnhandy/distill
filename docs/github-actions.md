@@ -15,7 +15,7 @@ Required runner: `ubuntu-latest` (or any Linux runner with Docker and `--privile
 ```yaml
 - uses: damnhandy/distill/.github/actions/setup-distill@main
   with:
-    version: v0.3.0   # pin to a release; omit for latest
+    version: v0.3.1   # pin to a release; omit for latest
 ```
 
 After this step, `distill` is on `PATH` and you can call any subcommand.
@@ -39,7 +39,7 @@ jobs:
 
       - uses: damnhandy/distill/.github/actions/setup-distill@main
         with:
-          version: v0.3.0
+          version: v0.3.1
 
       - name: Build image
         env:
@@ -82,7 +82,7 @@ jobs:
 
       - uses: damnhandy/distill/.github/actions/setup-distill@main
         with:
-          version: v0.3.0
+          version: v0.3.1
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -128,7 +128,7 @@ jobs:
 
       - uses: damnhandy/distill/.github/actions/setup-distill@main
         with:
-          version: v0.3.0
+          version: v0.3.1
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -147,7 +147,7 @@ jobs:
 
 | Input | Default | Description |
 |---|---|---|
-| `version` | `latest` | distill version to install (`v0.3.0`, `latest`) |
+| `version` | `latest` | distill version to install (`v0.3.1`, `latest`) |
 
 | Output | Description |
 |---|---|
@@ -165,7 +165,7 @@ If you have a self-hosted runner with Docker executor and `privileged: true`, th
 
 ```yaml
 variables:
-  DISTILL_VERSION: v0.3.0
+  DISTILL_VERSION: v0.3.1
 
 .distill-setup: &distill-setup
   before_script:
