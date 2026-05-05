@@ -153,7 +153,7 @@ Use the composite action to install distill on a runner without manual download 
 ```yaml
 - uses: damnhandy/distill/.github/actions/setup-distill@main
   with:
-    version: v0.3.0
+    version: v0.3.1
 ```
 
 See [CI/CD integration](#cicd-integration) for full workflow examples.
@@ -311,7 +311,7 @@ distill ships a GitHub Actions composite action that installs the CLI on the run
 ```yaml
 - uses: damnhandy/distill/.github/actions/setup-distill@main
   with:
-    version: v0.3.0
+    version: v0.3.1
 ```
 
 After that step, call `distill build` or `distill publish` directly. GitHub Actions ubuntu-latest hosted runners have Docker pre-installed and support distill's `--privileged` chroot builds without extra configuration. Set `DISTILL_CONTAINER_CLI: docker` in any step that invokes distill — on Linux, distill defaults to Podman, which is not installed on hosted runners.
@@ -331,7 +331,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: damnhandy/distill/.github/actions/setup-distill@main
         with:
-          version: v0.3.0
+          version: v0.3.1
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
