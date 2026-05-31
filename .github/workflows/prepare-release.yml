@@ -38,7 +38,7 @@ jobs:
           # PAT is required to push to the protected main branch.
           token: ${{ secrets.RELEASE_TOKEN }}
 
-      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Compute vendorHash
         id: vendor-hash
