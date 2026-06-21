@@ -53,8 +53,8 @@ jobs:
           echo "=== nix build output ===" >&2
           echo "$NIX_OUTPUT" >&2
           echo "========================" >&2
-          # grep exits 1 when no match; use || true so set -eo pipefail does not abort here.
-          VENDOR_HASH=$(echo "$NIX_OUTPUT" | grep "got:" | sed 's/.*got:[[:space:]]*//' || true)
+          # awk extracts the first "got:" hash only (single-line, always exits 0 — no pipefail interaction).
+          VENDOR_HASH=$(echo "$NIX_OUTPUT" | awk '/got:/ {sub(/.*got:[[:space:]]*/, ""); print; exit}')
           if [[ -z "$VENDOR_HASH" ]]; then
             echo "ERROR: could not extract vendorHash from nix build output" >&2
             exit 1
