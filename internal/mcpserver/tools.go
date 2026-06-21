@@ -175,14 +175,20 @@ func handlePublishImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	}
 	image := imageSpec.Destination.Ref()
 
+	multiArch := len(platforms) > 1
+
 	publishErr := withStdoutToStderr(func() error {
 		if !skipBuild {
 			b, err := builder.New(imageSpec.Source.PackageManager)
 			if err != nil {
 				return err
 			}
-			buildOpts := builder.BuildOptions{SourceDir: filepath.Dir(specPath)}
 			for _, p := range platforms {
+				tag := image
+				if multiArch {
+					tag = builder.PlatformRef(image, p)
+				}
+				buildOpts := builder.BuildOptions{SourceDir: filepath.Dir(specPath), Tag: tag}
 				if err := b.Build(ctx, imageSpec, p, buildOpts); err != nil {
 					return fmt.Errorf("build: %w", err)
 				}
@@ -190,13 +196,25 @@ func handlePublishImage(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 		}
 
 		if !skipPipeline {
-			if err := builder.RunPipeline(ctx, imageSpec, image, specPath, builder.PipelineModeLocal); err != nil {
-				return err
+			for _, p := range platforms {
+				scanTarget := image
+				if multiArch {
+					scanTarget = builder.PlatformRef(image, p)
+				}
+				if err := builder.RunPipeline(ctx, imageSpec, scanTarget, specPath, builder.PipelineModeLocal); err != nil {
+					return err
+				}
 			}
 		}
 
-		if err := builder.Push(ctx, image); err != nil {
-			return err
+		if multiArch {
+			if err := builder.PushManifest(ctx, image, platforms); err != nil {
+				return err
+			}
+		} else {
+			if err := builder.Push(ctx, image); err != nil {
+				return err
+			}
 		}
 
 		if !skipPipeline {
