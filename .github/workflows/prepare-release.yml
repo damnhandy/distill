@@ -4,8 +4,10 @@ name: Prepare Release
 # and pushes the release tag — which triggers the release workflow.
 #
 # Prerequisites:
-#   RELEASE_TOKEN secret — a PAT with `contents: write` and admin bypass for
-#   the main branch protection rule. Without it, the push to main will fail.
+#   RELEASE_TOKEN secret — a fine-grained PAT or classic PAT with `contents: write`
+#   scoped to this repository. Required to push to a protected main branch; if the
+#   secret is absent the job falls back to the built-in GITHUB_TOKEN (which has
+#   contents: write via the job's permissions block and works when main is unprotected).
 #
 # Usage: Actions → Prepare Release → Run workflow → enter version (e.g. v0.4.0)
 
@@ -35,8 +37,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-          # PAT is required to push to the protected main branch.
-          token: ${{ secrets.RELEASE_TOKEN }}
+          # Use RELEASE_TOKEN when available (needed to push to a protected main branch);
+          # fall back to the built-in GITHUB_TOKEN so the checkout step never fails
+          # with "Input required and not supplied: token" when the secret is absent.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
       - uses: DeterminateSystems/nix-installer-action@v22
 
@@ -66,9 +70,17 @@ jobs:
           sed -i "s|vendorHash = pkgs.lib.fakeHash;|vendorHash = \"${{ steps.vendor-hash.outputs.hash }}\";|" flake.nix
 
       - name: Commit and tag
+        env:
+          # Resolve the push token once so both git remote set-url and the push
+          # commands use the same credential. RELEASE_TOKEN is preferred (bypasses
+          # protected-branch rules); GITHUB_TOKEN is the fallback.
+          PUSH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Explicitly embed credentials in the remote URL so git push does not
+          # rely on the includeIf.gitdir credential file written by actions/checkout.
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
           git add flake.nix
           git diff --cached --quiet && echo "flake.nix unchanged, skipping commit" || \
             git commit -m "chore: update flake.nix vendorHash for ${{ inputs.version }}"
