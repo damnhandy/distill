@@ -4,8 +4,10 @@ name: Prepare Release
 # and pushes the release tag — which triggers the release workflow.
 #
 # Prerequisites:
-#   RELEASE_TOKEN secret — a PAT with `contents: write` and admin bypass for
-#   the main branch protection rule. Without it, the push to main will fail.
+#   RELEASE_TOKEN secret — a fine-grained PAT or classic PAT with `contents: write`
+#   scoped to this repository. Required to push the release commit/tag in a way that
+#   triggers the Release workflow (pushes made with GITHUB_TOKEN do not trigger other workflows).
+#   Also required to push to a protected main branch.
 #
 # Usage: Actions → Prepare Release → Run workflow → enter version (e.g. v0.4.0)
 
@@ -35,8 +37,10 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-          # PAT is required to push to the protected main branch.
-          token: ${{ secrets.RELEASE_TOKEN }}
+          # Use RELEASE_TOKEN when available (needed to push to a protected main branch);
+          # fall back to the built-in GITHUB_TOKEN so the checkout step never fails
+          # with "Input required and not supplied: token" when the secret is absent.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
 
       - uses: DeterminateSystems/nix-installer-action@v22
 
@@ -66,9 +70,20 @@ jobs:
           sed -i "s|vendorHash = pkgs.lib.fakeHash;|vendorHash = \"${{ steps.vendor-hash.outputs.hash }}\";|" flake.nix
 
       - name: Commit and tag
+        env:
+          # RELEASE_TOKEN is required to push tags that trigger the Release workflow
+          # (pushes made with GITHUB_TOKEN do not trigger other workflows).
+          PUSH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
+          if [[ -z "${PUSH_TOKEN}" ]]; then
+            echo "ERROR: RELEASE_TOKEN is required to push the release tag and trigger the Release workflow" >&2
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Explicitly embed credentials in the remote URL so git push does not
+          # rely on the includeIf.gitdir credential file written by actions/checkout.
+          git remote set-url origin "https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git"
           git add flake.nix
           git diff --cached --quiet && echo "flake.nix unchanged, skipping commit" || \
             git commit -m "chore: update flake.nix vendorHash for ${{ inputs.version }}"
