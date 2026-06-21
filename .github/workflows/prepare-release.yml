@@ -5,9 +5,9 @@ name: Prepare Release
 #
 # Prerequisites:
 #   RELEASE_TOKEN secret — a fine-grained PAT or classic PAT with `contents: write`
-#   scoped to this repository. Required to push to a protected main branch; if the
-#   secret is absent the job falls back to the built-in GITHUB_TOKEN (which has
-#   contents: write via the job's permissions block and works when main is unprotected).
+#   scoped to this repository. Required to push the release commit/tag in a way that
+#   triggers the Release workflow (pushes made with GITHUB_TOKEN do not trigger other workflows).
+#   Also required to push to a protected main branch.
 #
 # Usage: Actions → Prepare Release → Run workflow → enter version (e.g. v0.4.0)
 
@@ -71,11 +71,14 @@ jobs:
 
       - name: Commit and tag
         env:
-          # Resolve the push token once so both git remote set-url and the push
-          # commands use the same credential. RELEASE_TOKEN is preferred (bypasses
-          # protected-branch rules); GITHUB_TOKEN is the fallback.
-          PUSH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          # RELEASE_TOKEN is required to push tags that trigger the Release workflow
+          # (pushes made with GITHUB_TOKEN do not trigger other workflows).
+          PUSH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
+          if [[ -z "${PUSH_TOKEN}" ]]; then
+            echo "ERROR: RELEASE_TOKEN is required to push the release tag and trigger the Release workflow" >&2
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # Explicitly embed credentials in the remote URL so git push does not
