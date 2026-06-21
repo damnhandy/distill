@@ -82,6 +82,7 @@ func runPublish(ctx context.Context, specFile, platformOverride string, skipBuil
 	}
 
 	image := imageSpec.Destination.Ref()
+	multiArch := len(platforms) > 1
 
 	// Step 1: Build
 	if !skipBuild {
@@ -91,8 +92,12 @@ func runPublish(ctx context.Context, specFile, platformOverride string, skipBuil
 		}
 		fmt.Printf("Building %q\n  source:    %s\n  variant:   %s\n  platforms: %v\n  packages:  %d\n\n",
 			imageSpec.Name, imageSpec.Source.Image, imageSpec.Variant, platforms, len(imageSpec.Contents.Packages))
-		opts := builder.BuildOptions{SourceDir: filepath.Dir(specFile)}
 		for _, platform := range platforms {
+			tag := image
+			if multiArch {
+				tag = builder.PlatformRef(image, platform)
+			}
+			opts := builder.BuildOptions{SourceDir: filepath.Dir(specFile), Tag: tag}
 			if err := b.Build(ctx, imageSpec, platform, opts); err != nil {
 				return err
 			}
@@ -101,15 +106,27 @@ func runPublish(ctx context.Context, specFile, platformOverride string, skipBuil
 
 	// Step 2: Pre-push scan (fail fast before pushing a vulnerable image)
 	if !skipPipeline {
-		if err := builder.RunPipeline(ctx, imageSpec, image, specFile, builder.PipelineModeLocal); err != nil {
-			return err
+		for _, platform := range platforms {
+			scanTarget := image
+			if multiArch {
+				scanTarget = builder.PlatformRef(image, platform)
+			}
+			if err := builder.RunPipeline(ctx, imageSpec, scanTarget, specFile, builder.PipelineModeLocal); err != nil {
+				return err
+			}
 		}
 	}
 
 	// Step 3: Push
 	fmt.Printf("\n── Push ──────────────────────────────────────────────────\n")
-	if err := builder.Push(ctx, image); err != nil {
-		return err
+	if multiArch {
+		if err := builder.PushManifest(ctx, image, platforms); err != nil {
+			return err
+		}
+	} else {
+		if err := builder.Push(ctx, image); err != nil {
+			return err
+		}
 	}
 
 	// Step 4 + 5: Post-push pipeline (sbom + provenance)

@@ -17,6 +17,13 @@ type BuildOptions struct {
 	// SourceDir is the directory containing the spec file. It is used to
 	// resolve relative paths declared in type: local artifacts.
 	SourceDir string
+
+	// Tag overrides the image tag applied during the build. When empty the
+	// builder falls back to s.Destination.Ref(). The publish command uses this
+	// to apply platform-specific tags (e.g. image:tag-linux-amd64) so that
+	// each platform build survives in the local image store until the manifest
+	// index is assembled.
+	Tag string
 }
 
 // Builder builds an OCI image from an ImageSpec.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/damnhandy/distill/internal/spec"
 )
@@ -78,5 +79,41 @@ func Push(ctx context.Context, image string) error {
 	if err := run(ctx, os.Stdout, string(cli), "push", image); err != nil {
 		return fmt.Errorf("push %s: %w", image, err)
 	}
+	return nil
+}
+
+// PlatformRef derives the per-platform image tag by appending a sanitized
+// platform suffix to baseRef (e.g. "linux/amd64" → "image:tag-linux-amd64").
+func PlatformRef(baseRef, platform string) string {
+	return baseRef + "-" + strings.ReplaceAll(platform, "/", "-")
+}
+
+// PushManifest pushes each per-platform image to the registry, then
+// assembles and pushes a multi-platform manifest index under baseRef.
+// platRefs are derived from platforms via PlatformRef.
+func PushManifest(ctx context.Context, baseRef string, platforms []string) error {
+	cli := DetectCLI()
+
+	platRefs := make([]string, len(platforms))
+	for i, p := range platforms {
+		platRefs[i] = PlatformRef(baseRef, p)
+	}
+
+	for _, ref := range platRefs {
+		fmt.Printf("Pushing %s ...\n\n", ref)
+		if err := run(ctx, os.Stdout, string(cli), "push", ref); err != nil {
+			return fmt.Errorf("push %s: %w", ref, err)
+		}
+	}
+
+	createArgs := append([]string{"manifest", "create", "--amend", baseRef}, platRefs...)
+	if err := run(ctx, os.Stdout, string(cli), createArgs...); err != nil {
+		return fmt.Errorf("manifest create %s: %w", baseRef, err)
+	}
+
+	if err := run(ctx, os.Stdout, string(cli), "manifest", "push", baseRef); err != nil {
+		return fmt.Errorf("manifest push %s: %w", baseRef, err)
+	}
+
 	return nil
 }
