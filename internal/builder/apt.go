@@ -40,9 +40,14 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		return fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
+	tag := opts.Tag
+	if tag == "" && s.Destination != nil && s.Destination.Image != "" {
+		tag = s.Destination.Ref()
+	}
+
 	args := []string{"build", "--platform", platform, "-f", dockerfilePath}
-	if s.Destination != nil && s.Destination.Image != "" {
-		args = append(args, "-t", s.Destination.Ref())
+	if tag != "" {
+		args = append(args, "-t", tag)
 	}
 	args = append(args, contextDir)
 
@@ -50,8 +55,8 @@ func (b *APTBuilder) Build(ctx context.Context, s *spec.ImageSpec, platform stri
 		return fmt.Errorf("build failed: %w", err)
 	}
 
-	if s.Destination != nil && s.Destination.Image != "" {
-		fmt.Printf("\nBuilt %s\n", s.Destination.Ref())
+	if tag != "" {
+		fmt.Printf("\nBuilt %s\n", tag)
 	}
 	return nil
 }
