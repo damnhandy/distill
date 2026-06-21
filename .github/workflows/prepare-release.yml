@@ -50,10 +50,13 @@ jobs:
           # nix build exits non-zero on a hash mismatch (expected). Capture output before
           # checking the result so pipefail does not abort before grep can extract the hash.
           NIX_OUTPUT=$(nix --extra-experimental-features "nix-command flakes" build 2>&1 || true)
-          VENDOR_HASH=$(echo "$NIX_OUTPUT" | grep "got:" | sed 's/.*got:[[:space:]]*//')
+          echo "=== nix build output ===" >&2
+          echo "$NIX_OUTPUT" >&2
+          echo "========================" >&2
+          # awk extracts the first "got:" hash only (single-line, always exits 0 — no pipefail interaction).
+          VENDOR_HASH=$(echo "$NIX_OUTPUT" | awk '/got:/ {sub(/.*got:[[:space:]]*/, ""); print; exit}')
           if [[ -z "$VENDOR_HASH" ]]; then
             echo "ERROR: could not extract vendorHash from nix build output" >&2
-            echo "$NIX_OUTPUT" >&2
             exit 1
           fi
           echo "hash=${VENDOR_HASH}" >> "$GITHUB_OUTPUT"
