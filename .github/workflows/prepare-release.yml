@@ -52,7 +52,7 @@ jobs:
           # trigger the Release workflow.
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-      - uses: DeterminateSystems/nix-installer-action@v22
+      - uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Compute vendorHash
         id: vendor-hash
